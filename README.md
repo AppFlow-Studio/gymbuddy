@@ -1,8 +1,26 @@
-# Welcome to your Expo app 👋
+# GymBuddy 💪
 
-This is an [Expo](https://expo.dev) project created with [`create-expo-app`](https://www.npmjs.com/package/create-expo-app).
+GymBuddy is a mobile application designed to connect individuals seeking workout partners. The core mission is to eliminate the intimidation and inconsistency of going to the gym alone by fostering a community of motivated, compatible partners.
 
-## Get started
+## Design Philosophy
+
+The app should feel **motivating, approachable, and trustworthy.** It's not just a utility; it's a social motivator. The user experience should be seamless and encouraging, making the process of finding and meeting a gym partner feel safe and exciting.
+
+## Features
+
+- **Partner Matching**: Find compatible workout partners based on fitness goals, schedule, and location
+- **Safety & Trust**: Built-in verification and safety features to ensure secure connections
+- **Motivation**: Social features to keep users engaged and motivated in their fitness journey
+- **Seamless Experience**: Intuitive interface that makes finding a gym partner effortless
+
+## Tech Stack
+
+This project is built with:
+- [Expo](https://expo.dev) - React Native framework for cross-platform development
+- [React Native](https://reactnative.dev) - Mobile app development
+- [TypeScript](https://www.typescriptlang.org) - Type-safe JavaScript
+
+## Getting Started
 
 1. Install dependencies
 
@@ -10,42 +28,40 @@ This is an [Expo](https://expo.dev) project created with [`create-expo-app`](htt
    npm install
    ```
 
-2. Start the app
+2. Start the development server
 
    ```bash
    npx expo start
    ```
 
-In the output, you'll find options to open the app in a
+3. Run on your preferred platform:
+   - **iOS Simulator**: Press `i` in the terminal or scan the QR code with Expo Go
+   - **Android Emulator**: Press `a` in the terminal
+   - **Physical Device**: Scan the QR code with the Expo Go app
 
-- [development build](https://docs.expo.dev/develop/development-builds/introduction/)
-- [Android emulator](https://docs.expo.dev/workflow/android-studio-emulator/)
-- [iOS simulator](https://docs.expo.dev/workflow/ios-simulator/)
-- [Expo Go](https://expo.dev/go), a limited sandbox for trying out app development with Expo
+## Development
 
-You can start developing by editing the files inside the **app** directory. This project uses [file-based routing](https://docs.expo.dev/router/introduction).
+This project uses [file-based routing](https://docs.expo.dev/router/introduction) with the Expo Router. You can start developing by editing the files inside the **app** directory.
 
-## Get a fresh project
+### Project Structure
 
-When you're ready, run:
-
-```bash
-npm run reset-project
+```
+gymbuddy/
+├── app/                 # Main application screens and routing
+├── components/          # Reusable UI components
+├── constants/           # App constants and configuration
+├── hooks/              # Custom React hooks
+└── assets/             # Images, fonts, and other static assets
 ```
 
-This command will move the starter code to the **app-example** directory and create a blank **app** directory where you can start developing.
+## Contributing
 
-## Learn more
+We welcome contributions! Please feel free to submit pull requests or open issues for bugs and feature requests.
 
-To learn more about developing your project with Expo, look at the following resources:
+## License
 
-- [Expo documentation](https://docs.expo.dev/): Learn fundamentals, or go into advanced topics with our [guides](https://docs.expo.dev/guides).
-- [Learn Expo tutorial](https://docs.expo.dev/tutorial/introduction/): Follow a step-by-step tutorial where you'll create a project that runs on Android, iOS, and the web.
+This project is licensed under the MIT License.
 
-## Join the community
+---
 
-Join our community of developers creating universal apps.
-
-- [Expo on GitHub](https://github.com/expo/expo): View our open source platform and contribute.
-- [Discord community](https://chat.expo.dev): Chat with Expo users and ask questions.
-# gymbuddy
+**Built with ❤️ for the fitness community**
