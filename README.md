@@ -48,10 +48,19 @@ This project uses [file-based routing](https://docs.expo.dev/router/introduction
 ```
 gymbuddy/
 ├── app/                 # Main application screens and routing
+│   ├── (tabs)/         # Tab-based navigation screens
+│   │   ├── index.tsx   # Home screen
+│   │   ├── explore.tsx # Explore screen
+│   │   └── _layout.tsx # Tab layout configuration
+│   ├── _layout.tsx     # Root layout configuration
+│   ├── global.css      # Global styles
+│   └── +not-found.tsx # 404 error page
 ├── components/          # Reusable UI components
 ├── constants/           # App constants and configuration
 ├── hooks/              # Custom React hooks
-└── assets/             # Images, fonts, and other static assets
+├── assets/             # Images, fonts, and other static assets
+├── tailwind.config.js  # Tailwind CSS configuration
+└── metro.config.js     # Metro bundler configuration
 ```
 
 ## Contributing
