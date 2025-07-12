@@ -1,6 +1,10 @@
 import { FontAwesome5, Ionicons, MaterialCommunityIcons } from '@expo/vector-icons';
-import { Image, Text, View } from 'react-native';
+import { Dimensions, Image, StyleSheet, Text, View } from 'react-native';
 
+const SCREEN_WIDTH = Dimensions.get('window').width;
+const SCREEN_HEIGHT = Dimensions.get('window').height;
+const IMAGE_WIDTH = SCREEN_WIDTH * 0.90;
+const IMAGE_HEIGHT = SCREEN_HEIGHT  * 0.60;
 export type Profile = {
     name: string;
     age: number;
@@ -15,9 +19,25 @@ type ProfileCardProps = {
     profile: Profile;
 };
 
+const styles = StyleSheet.create({
+    // container: {
+    //     flex: 1,
+    //     alignItems: 'center',
+    //     justifyContent: 'center',
+    // },
+    card: {
+        position: 'relative',
+        width: IMAGE_WIDTH,
+        height: IMAGE_HEIGHT,
+        alignSelf: 'center', // Centers horizontally
+        marginTop: -100,     // Move up by 100px (adjust this value as needed)
+        // marginBottom: 'auto',
+    },
+});
+
 export default function ProfileCard({ profile }: ProfileCardProps) {
     return (
-        <View className="relative bg-white rounded-3xl overflow-hidden shadow-lg border border-[#FF6936]">
+        <View style={styles.card} className="relative bg-white rounded-3xl overflow-hidden shadow-lg border border-[#FF6936]">
             {/* Match Badge */}
             <View className="absolute left-3 top-3 z-10 bg-[#FF6936] rounded-full px-4 py-2 flex-row items-center">
                 <MaterialCommunityIcons name="account-search" size={18} color="white" />
@@ -26,7 +46,7 @@ export default function ProfileCard({ profile }: ProfileCardProps) {
             {/* User Image */}
             <Image
                 source={{ uri: profile.image }}
-                className="w-full h-72"
+                className="w-full h-full"
                 resizeMode="cover"
             />
             {/* Card Content */}

@@ -2,6 +2,7 @@ import React, { useRef, useState } from 'react';
 import { Animated, Dimensions, PanResponder, StyleSheet, View } from 'react-native';
 
 const SCREEN_WIDTH = Dimensions.get('window').width;
+const SCREEN_HEIGHT = Dimensions.get('window').height;
 const SWIPE_THRESHOLD = 0.25 * SCREEN_WIDTH;
 const SWIPE_OUT_DURATION = 250;
 
@@ -14,6 +15,7 @@ type TinderSwipeCardsProps<T> = {
 
 export function TinderSwipeCards<T>({ data, renderCard, onSwipeLeft, onSwipeRight }: TinderSwipeCardsProps<T>) {
     const [cardIndex, setCardIndex] = useState(0);
+    // const position = useRef(new Animated.ValueXY()).current;
     const position = useRef(new Animated.ValueXY()).current;
 
     const panResponder = useRef(
@@ -84,12 +86,8 @@ export function TinderSwipeCards<T>({ data, renderCard, onSwipeLeft, onSwipeRigh
                 </Animated.View>
             );
         }
-        // Next card underneath, static
-        return (
-            <Animated.View key={i} style={[styles.card, { top: 10 * (i - cardIndex), zIndex: data.length - i - 1, opacity: 0.9 }]}>
-                {renderCard(item, i)}
-            </Animated.View>
-        );
+        // Hide upcoming cards completely
+        return null;
     }).reverse();
 
     return <View style={styles.container}>{renderedCards}</View>;
@@ -102,8 +100,10 @@ const styles = StyleSheet.create({
         justifyContent: 'center',
     },
     card: {
-        position: 'absolute',
-        width: SCREEN_WIDTH - 32,
-        alignSelf: 'center',
+        position: 'relative',
+        // width: SCREEN_WIDTH - 32,
+        // height: SCREEN_HEIGHT - 64,
+        left: 0, // This centers the card by accounting for the 32px total width reduction
+        right: 0
     },
 }); 
