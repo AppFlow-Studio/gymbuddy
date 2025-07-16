@@ -6,26 +6,38 @@ const SCREEN_HEIGHT = Dimensions.get('window').height;
 const SWIPE_THRESHOLD = 0.25 * SCREEN_WIDTH;
 const SWIPE_OUT_DURATION = 250;
 
+// How much to offset/rotate the 2nd and 3rd cards
+const CARD_OFFSET = 0;
+const CARD_ROTATE_2 = '-8deg';
+const CARD_ROTATE_3 = '8deg';
+
+// How many cards to show in the stack
+const STACK_SIZE = 3;
+
 type TinderSwipeCardsProps<T> = {
     data: T[];
-    renderCard: (item: T, index: number) => React.ReactNode;
+    renderCard: (item: T, index: number, swiping: boolean, active: boolean) => React.ReactNode;
     onSwipeLeft?: (item: T) => void;
     onSwipeRight?: (item: T) => void;
+    setMatchedProfile?: (item: T) => void;
 };
 
-export function TinderSwipeCards<T>({ data, renderCard, onSwipeLeft, onSwipeRight }: TinderSwipeCardsProps<T>) {
+export function TinderSwipeCards<T>({ data, renderCard, onSwipeLeft, onSwipeRight, setMatchedProfile }: TinderSwipeCardsProps<T>) {
     const [cardIndex, setCardIndex] = useState(0);
-    // const position = useRef(new Animated.ValueXY()).current;
+    const [swiping, setSwiping] = useState(false);
     const position = useRef(new Animated.ValueXY()).current;
-
     const panResponder = useRef(
         PanResponder.create({
             onMoveShouldSetPanResponder: () => true,
+            onPanResponderGrant: () => {
+                setSwiping(true);
+            },
             onPanResponderMove: Animated.event(
                 [null, { dx: position.x, dy: position.y }],
                 { useNativeDriver: false }
             ),
             onPanResponderRelease: (_, gesture) => {
+                setSwiping(false);
                 if (gesture.dx > SWIPE_THRESHOLD) {
                     forceSwipe('right');
                 } else if (gesture.dx < -SWIPE_THRESHOLD) {
@@ -47,8 +59,14 @@ export function TinderSwipeCards<T>({ data, renderCard, onSwipeLeft, onSwipeRigh
     }
 
     function onSwipeComplete(direction: 'left' | 'right') {
-        const item = data[cardIndex];
-        direction === 'right' ? onSwipeRight?.(item) : onSwipeLeft?.(item);
+        const item = data[cardIndex + 1];
+        if (direction === 'right') {
+            setMatchedProfile?.(item);
+            console.log('matchedProfile', item);
+            onSwipeRight?.(item);
+        } else {
+            onSwipeLeft?.(item);
+        }
         position.setValue({ x: 0, y: 0 });
         setCardIndex(prev => prev + 1);
     }
@@ -72,25 +90,63 @@ export function TinderSwipeCards<T>({ data, renderCard, onSwipeLeft, onSwipeRigh
         };
     }
 
-    // Render cards in reverse order so the top card is last (on top)
-    const renderedCards = data.map((item, i) => {
-        if (i < cardIndex) return null;
+    // Only show the top 3 cards in the stack
+    const renderedCards = [];
+    for (let i = cardIndex; i < Math.min(cardIndex + STACK_SIZE, data.length); i++) {
         if (i === cardIndex) {
-            return (
+            // Top card: swipeable, animated
+            renderedCards.push(
                 <Animated.View
                     key={i}
                     style={[styles.card, getCardStyle(), { zIndex: data.length - i }]}
                     {...panResponder.panHandlers}
                 >
-                    {renderCard(item, i)}
+                    {renderCard(data[i], i, swiping, true)}
+                </Animated.View>
+            );
+        } else if (i === cardIndex + 1) {
+            // Second card: rotated left, offset down
+            renderedCards.push(
+                <Animated.View
+                    key={i}
+                    style={[
+                        styles.card,
+                        {
+                            top: CARD_OFFSET,
+                            zIndex: data.length - i - 1,
+                            transform: [{ rotate: CARD_ROTATE_2 }],
+                            opacity: 0.9,
+                        },
+                    ]}
+                    className={'opacity-50'}
+                >
+                    {renderCard(data[i], i, false, false)}
+                </Animated.View>
+            );
+        } else if (i === cardIndex + 2) {
+            // Third card: rotated right, offset down more
+            renderedCards.push(
+                <Animated.View
+                    key={i}
+                    style={[
+                        styles.card,
+                        {
+                            top: CARD_OFFSET * 2,
+                            zIndex: data.length - i - 2,
+                            transform: [{ rotate: CARD_ROTATE_3 }],
+                            opacity: 0.8,
+                        },
+                    ]}
+                    className={'opacity-50'}
+                >
+                    {renderCard(data[i], i, false, false)}
                 </Animated.View>
             );
         }
-        // Hide upcoming cards completely
-        return null;
-    }).reverse();
+    }
 
-    return <View style={styles.container}>{renderedCards}</View>;
+    // Render in reverse so the top card is last (on top)
+    return <View style={styles.container}>{renderedCards.reverse()}</View>;
 }
 
 const styles = StyleSheet.create({
@@ -100,10 +156,8 @@ const styles = StyleSheet.create({
         justifyContent: 'center',
     },
     card: {
-        position: 'relative',
-        // width: SCREEN_WIDTH - 32,
-        // height: SCREEN_HEIGHT - 64,
-        left: 0, // This centers the card by accounting for the 32px total width reduction
-        right: 0
+        position: 'absolute',
+        left: 0,
+        right: 0,
     },
 }); 

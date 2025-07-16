@@ -1,37 +1,52 @@
 import React from 'react';
 import { Image, Modal, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
-
+import TiltedDumbell from './icons/TiltedDumbell';
+import { useProfileStore } from '@/utils/profile-store';
 export default function MatchModal({ visible, onClose, userProfile, matchedProfile }: {
   visible: boolean;
   onClose: () => void;
   userProfile: any;
   matchedProfile: any;
 }) {
+  const { profile } = useProfileStore();
   if (!matchedProfile) return null;
+  console.log(matchedProfile);
   return (
     <Modal visible={visible} transparent animationType="fade">
       <View style={styles.overlay}>
-        <View style={styles.container}>
-          <View style={styles.imagesRow}>
-            <Image source={{ uri: userProfile.image }} style={[styles.profileImage, { transform: [{ rotate: '-12deg' }] }]} />
-            <View style={styles.iconCircle}>
-              <Text style={styles.iconText}>🤝</Text>
+        <View style={styles.container} className='w-[95%] h-[70%]'>
+          {/* Overlapping Cards Row */}
+          <View style={styles.cardsRow}>
+            <View style={[styles.cardWrapper, { left: 0, zIndex: 2 }]}>
+              <Image source={{ uri: profile?.image || '' }} style={[styles.profileCard, { transform: [{ rotate: '-10deg' }] }]} />
             </View>
-            <Image source={{ uri: matchedProfile.image }} style={[styles.profileImage, { transform: [{ rotate: '12deg' }] }]} />
+            <View style={[styles.cardWrapper, { right: 0, zIndex: 2 }]}>
+              <Image source={{ uri: matchedProfile.image }} style={[styles.profileCard, { transform: [{ rotate: '10deg' }] }]} />
+            </View>
+            {/* Dumbbell Icon Centered */}
+            <View style={styles.iconCircle}>
+              <TiltedDumbell />
+            </View>
           </View>
-          <Text style={styles.matchTitle}>It's a match</Text>
-          <Text style={styles.matchSubtitle}>You and {matchedProfile.name} are now connected</Text>
-          <TouchableOpacity style={styles.primaryButton} onPress={onClose}>
-            <Text style={styles.primaryButtonText}>Send a Message</Text>
-          </TouchableOpacity>
-          <TouchableOpacity style={styles.secondaryButton} onPress={onClose}>
-            <Text style={styles.secondaryButtonText}>Keep Swiping</Text>
-          </TouchableOpacity>
+
+         <View className='flex-1 justify-end items-center'>
+            <Text style={styles.matchTitle}>It's a match</Text>
+            <Text style={styles.matchSubtitle}>You and {matchedProfile.name} are now connected</Text>
+            <TouchableOpacity style={styles.primaryButton} onPress={onClose}>
+              <Text style={styles.primaryButtonText}>Send a Message</Text>
+            </TouchableOpacity>
+            <TouchableOpacity style={styles.secondaryButton} onPress={onClose}>
+              <Text style={styles.secondaryButtonText}>Keep Swiping</Text>
+            </TouchableOpacity>
+         </View>
         </View>
       </View>
     </Modal>
   );
 }
+
+const CARD_SIZE = 160;
+const CARD_OVERLAP = 48;
 
 const styles = StyleSheet.create({
   overlay: {
@@ -45,38 +60,52 @@ const styles = StyleSheet.create({
     borderRadius: 24,
     padding: 24,
     alignItems: 'center',
-    width: 320,
     shadowColor: '#000',
     shadowOpacity: 0.1,
     shadowRadius: 16,
     elevation: 8,
   },
-  imagesRow: {
-    flexDirection: 'row',
+  cardsRow: {
+    width: CARD_SIZE * 2 - CARD_OVERLAP + 44, // extra for icon
+    height: CARD_SIZE + 20,
     alignItems: 'center',
-    marginBottom: 24,
+    justifyContent: 'center',
+    marginBottom: 32,
+    position: 'relative',
   },
-  profileImage: {
-    width: 100,
-    height: 130,
-    borderRadius: 18,
+  cardWrapper: {
+    position: 'absolute',
+    top: 0,
+    width: CARD_SIZE,
+    height: CARD_SIZE * 1.25,
+    shadowColor: '#000',
+    shadowOpacity: 0.12,
+    shadowRadius: 12,
+    elevation: 6,
+  },
+  profileCard: {
+    width: CARD_SIZE,
+    height: CARD_SIZE * 1.25,
+    borderRadius: 24,
     borderWidth: 3,
     borderColor: '#FF6936',
     backgroundColor: '#eee',
   },
   iconCircle: {
+    position: 'absolute',
+    left: '50%',
+    top: '50%',
+    marginLeft: -22,
+    marginTop: -22,
     width: 44,
     height: 44,
     borderRadius: 22,
     backgroundColor: '#FF6936',
     justifyContent: 'center',
     alignItems: 'center',
-    marginHorizontal: 8,
-    zIndex: 2,
-  },
-  iconText: {
-    fontSize: 24,
-    color: '#fff',
+    zIndex: 3,
+    borderWidth: 4,
+    borderColor: '#fff',
   },
   matchTitle: {
     fontSize: 28,
@@ -97,7 +126,7 @@ const styles = StyleSheet.create({
     paddingVertical: 12,
     paddingHorizontal: 32,
     marginBottom: 12,
-    width: 220,
+    width: 260,
     alignItems: 'center',
   },
   primaryButtonText: {
@@ -111,7 +140,7 @@ const styles = StyleSheet.create({
     borderRadius: 24,
     paddingVertical: 12,
     paddingHorizontal: 32,
-    width: 220,
+    width: 260,
     alignItems: 'center',
   },
   secondaryButtonText: {
