@@ -2,6 +2,7 @@ import OrangeMapIcon from '@/components/icons/OrangeMapIcon';
 import OrangeTiltedDumbell from '@/components/icons/OrangeTiltedDumbell';
 import OrangeTimeClock from '@/components/icons/OrangeTimeClock';
 import { useProfileStore, type UserProfile } from '@/utils/profile-store';
+import { useRouter } from 'expo-router';
 import React from 'react';
 import { Image, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 
@@ -24,6 +25,7 @@ function capitalize(str: string) {
 
 const Profile = () => {
     const { profile } = useProfileStore();
+    const router = useRouter();
     const name = `${profile.firstName || 'John'} ${profile.lastName || 'Doe'}`; // Age hardcoded for demo
     const bio = 'Chasing gains, crushing limits. The grind is my happy place.'; // Demo bio
     const badges = badgeData(profile);
@@ -76,6 +78,13 @@ const Profile = () => {
                     </TouchableOpacity>
                     <TouchableOpacity style={styles.previewButton}>
                         <Text style={styles.previewButtonText}>Preview</Text>
+                    </TouchableOpacity>
+                </View>
+                
+                {/* Workout Log Button */}
+                <View style={styles.workoutLogButtonContainer}>
+                    <TouchableOpacity style={styles.workoutLogButton} onPress={() => router.push('./workout-log')}>
+                        <Text style={styles.workoutLogButtonText}>Workout Log</Text>
                     </TouchableOpacity>
                 </View>
             </ScrollView>
@@ -257,6 +266,28 @@ const styles = StyleSheet.create({
     },
     previewButtonText: {
         color: '#FF6936',
+        fontWeight: 'bold',
+        fontSize: 18,
+    },
+    workoutLogButtonContainer: {
+        position: 'absolute',
+        left: 0,
+        right: 0,
+        bottom: 30,
+        paddingHorizontal: 24,
+    },
+    workoutLogButton: {
+        backgroundColor: '#FF6936',
+        borderRadius: 32,
+        paddingVertical: 18,
+        alignItems: 'center',
+        shadowColor: '#FF6936',
+        shadowOpacity: 0.08,
+        shadowRadius: 8,
+        elevation: 2,
+    },
+    workoutLogButtonText: {
+        color: '#fff',
         fontWeight: 'bold',
         fontSize: 18,
     },
