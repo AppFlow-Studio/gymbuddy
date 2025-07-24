@@ -26,14 +26,14 @@ type ProfileStore = {
 };
 
 const initialProfile: UserProfile = {
-    firstName: '',
-    lastName: '',
+    firstName: 'Temur',
+    lastName: 'Sayfutdinov',
     image: null,
     video: null,
-    gym: null,
-    experience: null,
-    availability: [],
-    trainingPreferences: [], // NEW FIELD
+    gym: 'LA Fitness',
+    experience: 'intermediate',
+    availability: ['morning', 'afternoon', 'evening'],
+    trainingPreferences: ['strength', 'hypertrophy', 'endurance'], // NEW FIELD
 };
 
 export const useProfileStore = create<ProfileStore>((set) => ({

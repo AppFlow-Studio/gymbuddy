@@ -4,8 +4,8 @@ import OrangeTimeClock from '@/components/icons/OrangeTimeClock';
 import { useProfileStore, type UserProfile } from '@/utils/profile-store';
 import { useRouter } from 'expo-router';
 import React from 'react';
-import { Image, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
-
+import { Image, SafeAreaView, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import { useBottomTabBarHeight } from '@react-navigation/bottom-tabs';
 const badgeData = (profile: UserProfile) => [
     {
         icon: <OrangeTiltedDumbell />, label: profile.experience ? capitalize(profile.experience) : 'N/A',
@@ -29,8 +29,9 @@ const Profile = () => {
     const name = `${profile.firstName || 'John'} ${profile.lastName || 'Doe'}`; // Age hardcoded for demo
     const bio = 'Chasing gains, crushing limits. The grind is my happy place.'; // Demo bio
     const badges = badgeData(profile);
+    const bottomTabBarHeight = useBottomTabBarHeight();
     return (
-        <View style={styles.container}>
+        <SafeAreaView style={styles.container}>
             {/* Header */}
             {/* <View style={styles.headerRow}>
                 <TouchableOpacity style={styles.backButton}>
@@ -39,11 +40,11 @@ const Profile = () => {
                 <Text style={styles.headerTitle}>Profile</Text>
                 <View style={{ width: 32 }} />
             </View> */}
-            <ScrollView contentContainerStyle={{ alignItems: 'center', height: '100%' }} style={{ height: 200 }} showsVerticalScrollIndicator={false}>
+            <ScrollView contentContainerStyle={{ alignItems: 'center', height: '100%', paddingBottom: bottomTabBarHeight + 100 }} style={{ paddingBottom : 20 }} showsVerticalScrollIndicator={false}>
                 {/* Profile Image */}
                 <View style={styles.avatarWrap}>
                     <Image
-                        source={profile.image ? { uri: profile.image } : require('@/assets/images/icon.png')}
+                        source={profile.image ? { uri: profile.image } : require('@/assets/images/gymbuddyicon.png')}
                         style={styles.avatar}
                     />
                     <View style={styles.avatarBorder} />
@@ -68,7 +69,7 @@ const Profile = () => {
                             <View key={idx} style={styles.interestChip}>
                                 <Text style={styles.interestChipText}>{interest}</Text>
                             </View>
-                        ))}
+                        ))} 
                     </View>
                 </View>
                 {/* Edit & Preview Buttons */}
@@ -89,14 +90,13 @@ const Profile = () => {
                 </View>
             </ScrollView>
 
-        </View>
+        </SafeAreaView>
     );
 };
 
 const styles = StyleSheet.create({
     container: {
         flex: 1,
-        marginTop: 100,
         backgroundColor: '#F7F7FA',
     },
     headerRow: {
@@ -209,7 +209,7 @@ const styles = StyleSheet.create({
     interestsRow: {
         flexDirection: 'row',
         flexWrap: 'wrap',
-        gap: 12,
+        gap: 0,
     },
     interestChip: {
         backgroundColor: '#fff',

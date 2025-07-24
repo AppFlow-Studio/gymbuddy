@@ -65,12 +65,12 @@ export default function HomeScreen() {
   const [matchedProfile, setMatchedProfile] = useState<Profile | null>(null);
   const { profile } = useProfileStore();
   const router = useRouter();
-  useEffect(() => {
-    if (!profile.firstName) {
-      router.replace('/auth/PersonalInfoScreen');
-    }
-    console.log(profile);
-  }, []);
+  // useEffect(() => {
+  //   if (!profile.firstName) {
+  //     router.replace('/auth/PersonalInfoScreen');
+  //   }
+  //   console.log(profile);
+  // }, []);
   const handleSwipeLeft = (profile: Profile) => {
     setMatchedProfile(null);
     setShowMatchModal(false);

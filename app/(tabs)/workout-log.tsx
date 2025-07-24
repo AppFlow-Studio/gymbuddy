@@ -1,150 +1,482 @@
-import React, { useState, useRef } from 'react';
-import Svg, { Path, Rect } from 'react-native-svg';
-import { View, Text, StyleSheet, TouchableOpacity, ScrollView, Modal, Pressable, Dimensions, Animated } from 'react-native';
+import BottomSheet, { BottomSheetScrollView } from '@gorhom/bottom-sheet';
 import { useRouter } from 'expo-router';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { Animated, Dimensions, Easing, FlatList, Modal, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
+import Svg, { Path } from 'react-native-svg';
+// @ts-ignore
+
+// Type for a custom workout
+interface CustomWorkout {
+    id?: string;
+    name: string;
+    icon?: string;
+    exercises: Array<{
+        id: string;
+        name: string;
+        sets: Array<{ reps: number; weight: number; actualReps?: number; actualWeight?: number }>;
+    }>;
+}
+
+const EXERCISE_LIBRARY: string[] = [
+    'Bench Press', 'Squat', 'Deadlift', 'Pull-up', 'Push-up', 'Chest Fly', 'Barbell Row', 'Overhead Press', 'Lateral Raise', 'Bicep Curl', 'Tricep Extension', 'Leg Press', 'Calf Raise', 'Crunch', 'Plank', 'Russian Twist', 'Burpee', 'Mountain Climber', 'Jump Rope', 'Dumbbell Lunge'
+];
 
 const WorkoutLog = () => {
     const router = useRouter();
-    const [selectedDate, setSelectedDate] = useState(20);
+    const [selectedDate, setSelectedDate] = useState(new Date().getDate());
+    // hooks
+    const sheetRef = useRef<BottomSheet>(null);
+    const customSheetRef = useRef<BottomSheet>(null);
+    const snapPoints = useMemo(() => ["25%", "50%", "75%", "90%"], []);
+    const customSnapPoints = useMemo(() => ["90%"], []);
+    // Animation values
+    const fadeAnim = useRef(new Animated.Value(0)).current;
+    const slideAnim = useRef(new Animated.Value(50)).current;
+    const scaleAnim = useRef(new Animated.Value(0.8)).current;
+    const popupAnim = useRef(new Animated.Value(0)).current;
+    const popupScale = useRef(new Animated.Value(0.5)).current;
 
-    const [showTimer, setShowTimer] = useState(false);
-    const [timerSeconds, setTimerSeconds] = useState(15);
-    const [timerRunning, setTimerRunning] = useState(true);
-    const [currentSetIdx, setCurrentSetIdx] = useState(0);
-    const [completedSets, setCompletedSets] = useState([false, false, false]);
+    // State for motivational popup
+    const [showMotivationPopup, setShowMotivationPopup] = useState(false);
+    const [motivationMessage, setMotivationMessage] = useState('');
+    const [nextExercise, setNextExercise] = useState<any>(null);
 
-    React.useEffect(() => {
-        if (!showTimer || !timerRunning) return;
-        if (timerSeconds <= 0) return;
-        const interval = setInterval(() => {
-            setTimerSeconds((prev) => (prev > 0 ? prev - 1 : 0));
-        }, 1000);
-        return () => clearInterval(interval);
-    }, [showTimer, timerRunning, timerSeconds]);
+    // State for actual input modal
+    const [showActualModal, setShowActualModal] = useState(false);
+    const [pendingSet, setPendingSet] = useState<{ setId: number; exerciseId: number; workoutId: number; targetReps: number; targetWeight: number } | null>(null);
+    const [actualReps, setActualReps] = useState(0);
+    const [actualWeight, setActualWeight] = useState(0);
 
-    React.useEffect(() => {
-        if (showTimer && timerSeconds === 0) {
-            setTimeout(() => {
-                setShowTimer(false);
-                setTimerRunning(true);
-                setTimerSeconds(15);
-                setCompletedSets((prev) => {
-                    const updated = [...prev];
-                    updated[currentSetIdx] = true;
-                    return updated;
-                });
-                if (currentSetIdx < 2) {
-                    setCurrentSetIdx(currentSetIdx + 1);
-                }
-            }, 600);
-        }
-    }, [showTimer, timerSeconds, currentSetIdx]);
-
-    const calendarDays = [
-        { day: 17, label: 'MON' },
-        { day: 18, label: 'TUE' },
-        { day: 19, label: 'WED' },
-        { day: 20, label: 'THU' },
-        { day: 21, label: 'FRI' },
-        { day: 22, label: 'SAT' },
-        { day: 23, label: 'SUN' }
+    const motivationalMessages = [
+        "Great job! 💪 Keep pushing!",
+        "You're crushing it! 🔥",
+        "Amazing work! Keep going! 🚀",
+        "You're on fire! 🔥",
+        "Incredible progress! 💯",
+        "You're unstoppable! ⚡",
+        "Fantastic effort! 🌟",
+        "You're doing amazing! 🎯"
     ];
 
-    const workoutTypes = [
+    // Animation functions
+    const animateIn = () => {
+        Animated.parallel([
+            Animated.timing(fadeAnim, {
+                toValue: 1,
+                duration: 300,
+                useNativeDriver: true,
+            }),
+            Animated.timing(slideAnim, {
+                toValue: 0,
+                duration: 300,
+                useNativeDriver: true,
+            }),
+            Animated.timing(scaleAnim, {
+                toValue: 1,
+                duration: 300,
+                useNativeDriver: true,
+            }),
+        ]).start();
+    };
+
+    const animateOut = () => {
+        Animated.parallel([
+            Animated.timing(fadeAnim, {
+                toValue: 0,
+                duration: 200,
+                useNativeDriver: true,
+            }),
+            Animated.timing(slideAnim, {
+                toValue: 50,
+                duration: 200,
+                useNativeDriver: true,
+            }),
+            Animated.timing(scaleAnim, {
+                toValue: 0.8,
+                duration: 200,
+                useNativeDriver: true,
+            }),
+        ]).start();
+    };
+
+    const showMotivationPopupAnimation = () => {
+        setShowMotivationPopup(true);
+        Animated.parallel([
+            Animated.timing(popupAnim, {
+                toValue: 1,
+                duration: 300,
+                useNativeDriver: true,
+            }),
+            Animated.spring(popupScale, {
+                toValue: 1,
+                tension: 100,
+                friction: 8,
+                useNativeDriver: true,
+            }),
+        ]).start();
+    };
+
+    const hideMotivationPopupAnimation = () => {
+        Animated.parallel([
+            Animated.timing(popupAnim, {
+                toValue: 0,
+                duration: 200,
+                useNativeDriver: true,
+            }),
+            Animated.timing(popupScale, {
+                toValue: 0.5,
+                duration: 200,
+                useNativeDriver: true,
+            }),
+        ]).start(() => {
+            setShowMotivationPopup(false);
+            if (nextExercise) {
+                handleExerciseSelect(nextExercise.id);
+                setNextExercise(null);
+            }
+        });
+    };
+
+    // callbacks
+    const handleSnapPress = useCallback((index: number) => {
+        sheetRef.current?.snapToIndex(index);
+    }, []);
+    const handleCustomWorkoutSnapPress = useCallback((index: number) => {
+        customSheetRef.current?.snapToIndex(index);
+    }, []);
+    const handleClosePress = useCallback(() => {
+        sheetRef.current?.close();
+    }, []);
+
+    // Move workoutTypes into state
+    const [workoutTypes, setWorkoutTypes] = useState<Array<{
+        id: number;
+        name: string;
+        icon: string;
+        exercises: Array<{
+            id: number;
+            name: string;
+            sets: Array<{ id: number; reps: number; weight: number; completed: boolean; actualReps?: number; actualWeight?: number }>;
+        }>;
+    }>>([
         {
             id: 1,
-            name: 'Push Day',
-            sets: 3,
-            reps: 10,
-            weight: 680,
-            additionalWeight: 25,
-            icon: 'custom',
-            iconBg: '#FFF0E5'
+            name: 'Chest Day',
+            icon: '💪',
+            exercises: [
+                {
+                    id: 1,
+                    name: 'Bench Press',
+                    sets: [
+                        { id: 1, reps: 10, weight: 135, completed: false },
+                        { id: 2, reps: 10, weight: 135, completed: false },
+                        { id: 3, reps: 8, weight: 145, completed: false },
+                    ]
+                },
+                {
+                    id: 2,
+                    name: 'Chest Fly',
+                    sets: [
+                        { id: 1, reps: 12, weight: 25, completed: false },
+                        { id: 2, reps: 12, weight: 25, completed: false },
+                        { id: 3, reps: 10, weight: 30, completed: false },
+                    ]
+                },
+                {
+                    id: 3,
+                    name: 'Incline Dumbbell Press',
+                    sets: [
+                        { id: 1, reps: 10, weight: 45, completed: false },
+                        { id: 2, reps: 10, weight: 45, completed: false },
+                        { id: 3, reps: 8, weight: 50, completed: false },
+                    ]
+                }
+            ]
         },
         {
             id: 2,
-            name: 'Legs',
-            sets: 3,
-            reps: 5,
-            weight: 630,
-            additionalWeight: 25,
-            icon: 'x',
-            iconBg: '#FFF0E5'
+            name: 'Back Day',
+            icon: '🏋️',
+            exercises: [
+                {
+                    id: 1,
+                    name: 'Pull-ups',
+                    sets: [
+                        { id: 1, reps: 8, weight: 0, completed: false },
+                        { id: 2, reps: 8, weight: 0, completed: false },
+                        { id: 3, reps: 6, weight: 0, completed: false },
+                    ]
+                },
+                {
+                    id: 2,
+                    name: 'Barbell Rows',
+                    sets: [
+                        { id: 1, reps: 10, weight: 95, completed: false },
+                        { id: 2, reps: 10, weight: 95, completed: false },
+                        { id: 3, reps: 8, weight: 105, completed: false },
+                    ]
+                }
+            ]
         },
         {
             id: 3,
-            name: 'Full Body',
-            sets: 3,
-            reps: 8,
-            weight: 450,
-            additionalWeight: 25,
-            icon: 'x',
-            iconBg: '#FFF0E5'
+            name: 'Leg Day',
+            icon: '🦵',
+            exercises: [
+                {
+                    id: 1,
+                    name: 'Squats',
+                    sets: [
+                        { id: 1, reps: 8, weight: 185, completed: false },
+                        { id: 2, reps: 8, weight: 185, completed: false },
+                        { id: 3, reps: 6, weight: 205, completed: false },
+                    ]
+                },
+                {
+                    id: 2,
+                    name: 'Deadlifts',
+                    sets: [
+                        { id: 1, reps: 6, weight: 225, completed: false },
+                        { id: 2, reps: 6, weight: 225, completed: false },
+                        { id: 3, reps: 4, weight: 245, completed: false },
+                    ]
+                }
+            ]
         },
         {
             id: 4,
-            name: 'Cardio',
-            sets: 3,
-            reps: 10,
-            weight: 390,
-            additionalWeight: 25,
-            icon: 'x',
-            iconBg: '#FFF0E5'
-        },
-        {
-            id: 5,
-            name: 'Cable Crossover Fly',
-            sets: 4,
-            reps: 10,
-            weight: 50,
-            additionalWeight: 5,
-            icon: 'x',
-            iconBg: '#FFF0E5'
+            name: 'Shoulder Day',
+            icon: '💪',
+            exercises: [
+                {
+                    id: 1,
+                    name: 'Overhead Press',
+                    sets: [
+                        { id: 1, reps: 8, weight: 95, completed: false },
+                        { id: 2, reps: 8, weight: 95, completed: false },
+                        { id: 3, reps: 6, weight: 105, completed: false },
+                    ]
+                },
+                {
+                    id: 2,
+                    name: 'Lateral Raises',
+                    sets: [
+                        { id: 1, reps: 12, weight: 15, completed: false },
+                        { id: 2, reps: 12, weight: 15, completed: false },
+                        { id: 3, reps: 10, weight: 20, completed: false },
+                    ]
+                }
+            ]
         }
-    ];
+    ]);
 
     const [selectedWorkoutId, setSelectedWorkoutId] = useState<number | null>(null);
-    const [modalVisible, setModalVisible] = useState(false);
-    const overlayOpacity = useRef(new Animated.Value(0)).current;
-    const modalTranslateY = useRef(new Animated.Value(400)).current;
+    const [selectedExerciseId, setSelectedExerciseId] = useState<number | null>(null);
+    const [currentSetIdx, setCurrentSetIdx] = useState(0);
+    const [showTimer, setShowTimer] = useState(false);
+    const [timerSeconds, setTimerSeconds] = useState(0);
+
+    const selectedWorkout = workoutTypes.find(workout => workout.id === selectedWorkoutId);
+    const selectedExercise = selectedWorkout?.exercises.find(exercise => exercise.id === selectedExerciseId);
+    const completedSets = selectedExercise?.sets.map(set => set.completed) || [];
+
+    const handleWorkoutSelect = (workoutId: number) => {
+        animateOut();
+        setTimeout(() => {
+            setSelectedWorkoutId(workoutId);
+            setSelectedExerciseId(null);
+            setCurrentSetIdx(0);
+            setShowTimer(false);
+            setTimerSeconds(0);
+            sheetRef.current?.snapToIndex(2);
+            setTimeout(() => {
+                animateIn();
+            }, 100);
+        }, 200);
+    };
+
+    const handleExerciseSelect = (exerciseId: number) => {
+        animateOut();
+        setTimeout(() => {
+            setSelectedExerciseId(exerciseId);
+            setCurrentSetIdx(0);
+            setShowTimer(false);
+            setTimerSeconds(0);
+            setTimeout(() => {
+                animateIn();
+            }, 100);
+        }, 200);
+    };
+
+    // Update handleSetComplete to open modal
+    const handleSetComplete = (setId: number) => {
+        if (selectedWorkoutId !== null && selectedExerciseId !== null) {
+            const selectedWorkout = workoutTypes.find(w => w.id === selectedWorkoutId);
+            const selectedExercise = selectedWorkout?.exercises.find(e => e.id === selectedExerciseId);
+            if (selectedExercise) {
+                const set = selectedExercise.sets.find(s => s.id === setId);
+                if (set) {
+                    setPendingSet({
+                        setId,
+                        exerciseId: selectedExerciseId,
+                        workoutId: selectedWorkoutId,
+                        targetReps: set.reps,
+                        targetWeight: set.weight
+                    });
+                    setActualReps(set.reps);
+                    setActualWeight(set.weight);
+                    setShowActualModal(true);
+                }
+            }
+        }
+    };
+    // Confirm actual input and update set
+    const handleConfirmActual = () => {
+        if (pendingSet) {
+            setWorkoutTypes(prevWorkouts => prevWorkouts.map(workout => {
+                if (workout.id !== pendingSet.workoutId) return workout;
+                return {
+                    ...workout,
+                    exercises: workout.exercises.map(exercise => {
+                        if (exercise.id !== pendingSet.exerciseId) return exercise;
+                        return {
+                            ...exercise,
+                            sets: exercise.sets.map(set =>
+                                set.id === pendingSet.setId
+                                    ? { ...set, completed: true, actualReps, actualWeight }
+                                    : set
+                            )
+                        };
+                    })
+                };
+            }));
+
+            // Find the next incomplete set index after updating
+            const selectedWorkout = workoutTypes.find(w => w.id === pendingSet.workoutId);
+            const selectedExercise = selectedWorkout?.exercises.find(e => e.id === pendingSet.exerciseId);
+            if (selectedExercise) {
+                const setIndex = selectedExercise.sets.findIndex(set => set.id === pendingSet.setId);
+                // Simulate the next state of sets
+                const updatedSets = selectedExercise.sets.map(set =>
+                    set.id === pendingSet.setId ? { ...set, completed: true, actualReps, actualWeight } : set
+                );
+                const nextIncompleteIdx = updatedSets.findIndex(set => !set.completed);
+                if (nextIncompleteIdx !== -1) {
+                    setCurrentSetIdx(nextIncompleteIdx);
+                    setShowTimer(true);
+                    setTimerSeconds(45); // Show rest timer for next set
+                } else {
+                    setCurrentSetIdx(updatedSets.length - 1); // Stay at last set if all complete
+                    setShowTimer(false); // No timer after last set
+                }
+            }
+            setShowActualModal(false);
+            setPendingSet(null);
+        }
+    };
+
+    const handleTimerComplete = () => {
+        setShowTimer(false);
+        setTimerSeconds(0);
+    };
+
+    useEffect(() => {
+        let interval: ReturnType<typeof setInterval> | undefined;
+        if (showTimer && timerSeconds > 0) {
+            interval = setInterval(() => {
+                setTimerSeconds(prev => {
+                    if (prev <= 1) {
+                        handleTimerComplete();
+                        return 0;
+                    }
+                    return prev - 1;
+                });
+            }, 1000);
+        }
+        return () => {
+            if (interval) clearInterval(interval);
+        };
+    }, [showTimer, timerSeconds, currentSetIdx]);
+
+    // Trigger initial animation when component mounts
+    useEffect(() => {
+        animateIn();
+    }, []);
+
+    // Motivational popup and next-exercise logic in useEffect
+    useEffect(() => {
+        if (selectedWorkoutId !== null && selectedExerciseId !== null) {
+            const selectedWorkout = workoutTypes.find(w => w.id === selectedWorkoutId);
+            const selectedExercise = selectedWorkout?.exercises.find(e => e.id === selectedExerciseId);
+            if (!selectedExercise) return;
+            const allSetsCompleted = selectedExercise.sets.every(set => set.completed);
+            if (allSetsCompleted) {
+                // Exercise completed - show motivation popup
+                const randomMessage = motivationalMessages[Math.floor(Math.random() * motivationalMessages.length)];
+                setMotivationMessage(randomMessage);
+                // Find next exercise in the workout
+                const currentExerciseIndex = selectedWorkout?.exercises.findIndex(ex => ex.id === selectedExercise.id);
+                if (typeof currentExerciseIndex !== 'number' || currentExerciseIndex === -1) return;
+                const nextExerciseInWorkout = selectedWorkout?.exercises[currentExerciseIndex + 1];
+                if (nextExerciseInWorkout) {
+                    setNextExercise(nextExerciseInWorkout);
+                    showMotivationPopupAnimation();
+                } else {
+                    // Workout completed
+                    setMotivationMessage("🎉 Workout Complete! Amazing job!");
+                    setNextExercise(null);
+                    showMotivationPopupAnimation();
+                }
+            }
+        }
+    }, [workoutTypes, selectedWorkoutId, selectedExerciseId]);
+
+    // Dynamically generate the current week (Sunday to Saturday)
+    const getCurrentWeekDays = () => {
+        const days = [];
+        const today = new Date();
+        const startOfWeek = new Date(today);
+        startOfWeek.setDate(today.getDate() - today.getDay()); // Sunday as first day
+        for (let i = 0; i < 7; i++) {
+            const day = new Date(startOfWeek);
+            day.setDate(startOfWeek.getDate() + i);
+            days.push({
+                day: day.getDate(),
+                label: day.toLocaleDateString('en-US', { weekday: 'short' }).toUpperCase(),
+                fullLabel: day.toLocaleDateString('en-US', { weekday: 'long' }),
+            });
+        }
+        return days;
+    };
+    const calendarDays = getCurrentWeekDays();
 
     const openModal = () => {
-        setModalVisible(true);
-        modalTranslateY.setValue(400);
-        overlayOpacity.setValue(0);
-        Animated.timing(modalTranslateY, {
-            toValue: 0,
-            duration: 220,
-            useNativeDriver: true,
-        }).start(() => {
-            Animated.timing(overlayOpacity, {
-                toValue: 1,
-                duration: 180,
-                useNativeDriver: true,
-            }).start();
-        });
+        handleSnapPress(3);
     };
 
-    const closeModal = () => {
-        Animated.timing(overlayOpacity, {
-            toValue: 0,
-            duration: 120,
-            useNativeDriver: true,
-        }).start(() => {
-            Animated.timing(modalTranslateY, {
-                toValue: 400,
-                duration: 180,
+    const date = new Date();
+    const monthName = date.toLocaleString('default', { month: 'long' });
+    const year = date.getFullYear();
+
+    // Animation for modal
+    const modalAnim = useRef(new Animated.Value(0)).current;
+    useEffect(() => {
+        if (showActualModal) {
+            modalAnim.setValue(0);
+            Animated.timing(modalAnim, {
+                toValue: 1,
+                duration: 300,
+                easing: Easing.out(Easing.exp),
                 useNativeDriver: true,
-            }).start(() => {
-                setModalVisible(false);
-            });
-        });
-    };
+            }).start();
+        }
+    }, [showActualModal]);
+
 
     return (
         <View style={styles.container}>
             <View style={styles.headerRow}>
-                <TouchableOpacity style={styles.backButton} onPress={() => router.back()}>
+                <TouchableOpacity style={styles.backButton} onPress={() => router.push('./profile')}>
                     <View style={styles.roundedBackButton}>
                         <Svg width={8} height={14} viewBox="0 0 8 14" fill="none">
                             <Path d="M6.46964 0.469655C6.76253 0.176788 7.2373 0.176775 7.53019 0.469655C7.82305 0.762541 7.82305 1.23731 7.53019 1.5302L2.06046 6.99993L7.53019 12.4697C7.82308 12.7625 7.82308 13.2373 7.53019 13.5302C7.2373 13.8231 6.76253 13.8231 6.46964 13.5302L0.46964 7.5302C0.176803 7.23731 0.176771 6.76253 0.46964 6.46966L6.46964 0.469655Z" fill="#49494B" />
@@ -156,7 +488,7 @@ const WorkoutLog = () => {
             </View>
 
             <ScrollView style={styles.content} showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingBottom: 64 }}>
-                <View style={styles.calendarSection}>
+                <View style={styles.calendarSection} className='px-[24px]'>
                     <View style={styles.monthHeaderRow}>
                         <TouchableOpacity style={styles.monthArrowButton}>
                             <View style={styles.roundedMonthArrow}>
@@ -165,7 +497,7 @@ const WorkoutLog = () => {
                                 </Svg>
                             </View>
                         </TouchableOpacity>
-                        <Text style={styles.monthText}>January 2023</Text>
+                        <Text style={styles.monthText}>{monthName} {year}</Text>
                         <TouchableOpacity style={styles.monthArrowButton}>
                             <View style={styles.roundedMonthArrow}>
                                 <Svg width={5} height={8} viewBox="0 0 5 8" fill="none" style={{ transform: [{ scaleX: -1 }] }}>
@@ -202,14 +534,16 @@ const WorkoutLog = () => {
                     </ScrollView>
                 </View>
 
-                <TouchableOpacity style={[styles.addPastWorkoutButton, { marginBottom: 16 }]}> 
-                    <Text style={styles.addPastWorkoutText}>Add Past Workout</Text>
-                </TouchableOpacity>
+                {/* <View className='px-[24px]'>
+                    <TouchableOpacity style={[styles.addPastWorkoutButton, { marginBottom: 16 }]}>
+                        <Text style={styles.addPastWorkoutText}>Add Past Workout</Text>
+                    </TouchableOpacity>
+                </View> */}
 
-                <Text style={styles.sectionTitle}>Select workout Type</Text>
-                <Text style={styles.sectionSubtitle}>Choose your workout, chase your goals.</Text>
+                <Text style={styles.sectionTitle} className='px-[24px]'>Select workout Type</Text>
+                <Text style={styles.sectionSubtitle} className='px-[24px] '>Choose your workout, chase your goals.</Text>
 
-                <View style={{ marginBottom: 16 }}>
+                <View className='px-[24px]'>
                     {workoutTypes.map((workout) => {
                         const isSelected = selectedWorkoutId === workout.id;
                         return (
@@ -217,244 +551,442 @@ const WorkoutLog = () => {
                                 key={workout.id}
                                 style={[styles.workoutTypeCard, isSelected && styles.workoutTypeCardSelected]}
                                 activeOpacity={0.85}
-                                onPress={() => setSelectedWorkoutId(workout.id)}
+                                onPress={() => handleWorkoutSelect(workout.id)}
                             >
                                 <View style={styles.workoutTypeLeft}>
-                                    <View style={[styles.workoutIcon, { backgroundColor: workout.iconBg }]}> 
-                                        <Svg width={18} height={19} viewBox="0 0 18 19" fill="none">
-                                            <Path d="M12.2836 13.6779L4.55857 16.9329C3.75607 17.2704 3.05855 16.2729 3.65105 15.6354L9.50855 9.27539L12.546 12.3654C12.951 12.7704 12.8161 13.4604 12.2836 13.6779Z" fill="#FF6936"/>
-                                            <Path d="M14.3792 3.32738L9.51173 9.27488L6.47423 6.19988C6.06923 5.78738 6.20422 5.09738 6.73672 4.87988L13.4417 2.06738C14.2217 1.73738 14.9192 2.67488 14.3792 3.32738Z" fill="#FF6936"/>
-                                        </Svg>
+                                    <View style={[styles.workoutIcon, { backgroundColor: '#FFF0E5' }]}>
+                                        <Text style={styles.workoutIconText}>{workout.icon}</Text>
                                     </View>
                                     <View style={styles.workoutInfo}>
                                         <Text style={styles.workoutName}>{workout.name}</Text>
-                                        <Text style={styles.workoutDetails}>{workout.sets} sets • {workout.reps} reps</Text>
+                                        <Text style={styles.workoutDetails}>{workout.exercises.length} exercises</Text>
                                     </View>
                                 </View>
                                 <View style={styles.workoutTypeRight}>
-                                    <Text style={styles.caloriesText}>{workout.weight}lbs</Text>
-                                    <Text style={styles.additionalCaloriesMuted}>+{workout.additionalWeight}lbs</Text>
+                                    <Text style={styles.caloriesText}>{workout.exercises.reduce((sum, ex) => sum + ex.sets.length, 0)} sets</Text>
                                 </View>
                             </TouchableOpacity>
                         );
                     })}
                 </View>
 
-                <TouchableOpacity style={styles.createCustomButton}>
-                    <Text style={styles.createCustomText}>Create Custom Workout</Text>
-                </TouchableOpacity>
+                <View className='px-[24px] w-full flex flex-col  justify-between'>
+                    <TouchableOpacity
+                        style={styles.createCustomButton}
+                        onPress={() => {
+                            handleCustomWorkoutSnapPress(1)
+                        }}
+                    >
+                        <Text style={styles.createCustomText}>Create Custom Workout</Text>
+                    </TouchableOpacity>
 
-                <TouchableOpacity 
-                    style={styles.startWorkoutButton}
-                    onPress={openModal}
-                    disabled={!selectedWorkoutId}
-                >
-                    <Text style={styles.startWorkoutText}>Start Workout</Text>
-                </TouchableOpacity>
+                    <TouchableOpacity
+                        style={[
+                            styles.startWorkoutButton,
+                            !selectedWorkoutId && { backgroundColor: '#E5E5E5' }
+                        ]}
+                        onPress={openModal}
+                        disabled={!selectedWorkoutId}
+                    >
+                        <Text style={[
+                            styles.startWorkoutText,
+                            !selectedWorkoutId && { color: '#A1A1AA' }
+                        ]}>
+                            Start Workout
+                        </Text>
+                    </TouchableOpacity>
+                </View>
 
-                <Modal
-                    visible={modalVisible}
-                    animationType="none"
-                    transparent={true}
-                    onRequestClose={closeModal}
+
+                <BottomSheet
+                    ref={sheetRef}
+                    index={-1}
+                    snapPoints={snapPoints}
+                    enableDynamicSizing={false}
+                    enablePanDownToClose
                 >
-                    <Animated.View style={[styles.modalOverlay, { opacity: overlayOpacity }]}>
-                        <Pressable style={{ flex: 1 }} onPress={closeModal} />
-                        <Animated.View style={[{
-                                backgroundColor: '#fff',
-                                borderTopLeftRadius: 28,
-                                borderTopRightRadius: 28,
-                                minHeight: !completedSets.every(Boolean) ? SCREEN_HEIGHT * 0.6 : SCREEN_HEIGHT * 0.3,
-                                maxHeight: !completedSets.every(Boolean) ? SCREEN_HEIGHT * 0.6 : SCREEN_HEIGHT * 0.3,
-                                paddingHorizontal: 24,
-                                paddingTop: 16,
-                                paddingBottom: 24,
-                                shadowColor: '#000',
-                                shadowOpacity: 0.08,
-                                shadowRadius: 12,
-                                elevation: 8,
-                            }, { transform: [{ translateY: modalTranslateY }] }]}>
-                            <View style={styles.modalHandle} />
-                            {!completedSets.every(Boolean) &&
-                                <>
-                                    <Text style={[styles.modalWorkoutName, { width: '100%', textAlign: 'center', alignSelf: 'center', fontWeight: '700' }] }>
-                                        {selectedWorkoutId ? workoutTypes.find(w => w.id === selectedWorkoutId)?.name : 'Workout'}
-                                    </Text>
-                                    <Text style={[styles.modalWorkoutSub, { width: '100%', textAlign: 'center', alignSelf: 'center', fontWeight: '500' }]}>3 sets • 10 reps</Text>
-                                    <View style={{ width: '100%', alignSelf: 'center', maxWidth: 400, padding: 0 }}>
-                                    {[0, 1, 2].map((idx, val) => {
-                                        let status = 'upcoming';
-                                        if (completedSets[idx]) status = 'completed';
-                                        else if (idx === currentSetIdx) status = 'active';
-                                        return (
-                                            <View key={idx} style={{ marginBottom: idx < 2 ? 24 : 0, position: 'relative', opacity: status === 'upcoming' ? 0.6 : 1 }}>
-                                                {idx < 2 && (
-                                                    <>
-                                                        <View style={{ position: 'absolute', left: 24, top: 50, width: 2, height: 20, backgroundColor: '#e5e7eb', zIndex: 0 }} />
-                                                        <Svg width={16} height={16} style={{ position: 'absolute', left: 17, top: 65, zIndex: 0 }} viewBox="0 0 16 16" fill="none">
-                                                            <Path d="M8 0C3.58172 0 0 3.58172 0 8C0 12.4183 3.58172 16 8 16C12.4183 16 16 12.4183 16 8C16 3.58172 12.4183 0 8 0Z" fill="#FEFEFF" />
-                                                            <Path d="M7.99973 3.09961C4.81306 3.09961 2.21973 5.69294 2.21973 8.87961C2.21973 12.0663 4.81306 14.6663 7.99973 14.6663C11.1864 14.6663 13.7797 12.0729 13.7797 8.88628C13.7797 5.69961 11.1864 3.09961 7.99973 3.09961ZM8.49973 8.66628C8.49973 8.93961 8.27306 9.16628 7.99973 9.16628C7.72639 9.16628 7.49973 8.93961 7.49973 8.66628V5.33294C7.49973 5.05961 7.72639 4.83294 7.99973 4.83294C8.27306 4.83294 8.49973 5.05961 8.49973 5.33294V8.66628Z" fill="#D2D2D2" />
-                                                            <Path d="M9.92708 2.29967H6.07375C5.80708 2.29967 5.59375 2.08634 5.59375 1.81967C5.59375 1.55301 5.80708 1.33301 6.07375 1.33301H9.92708C10.1937 1.33301 10.4071 1.54634 10.4071 1.81301C10.4071 2.07967 10.1937 2.29967 9.92708 2.29967Z" fill="#D2D2D2" />
-                                                        </Svg>
-                                                        <View style={{ position: 'absolute', left: 24, top: 81, width: 2, height: 20, backgroundColor: '#e5e7eb', zIndex: 0 }} />
-                                                    </>
-                                                )}
-                                                {idx === 2 && (
-                                                    <>
-                                                        <View style={{ position: 'absolute', left: 24, top: 50, width: 2, height: 20, backgroundColor: '#e5e7eb', zIndex: 0 }} />
-                                                        <Svg width={32} height={32} style={{ position: 'absolute', left: 9.5, top: 65, zIndex: 0 }} viewBox="0 0 32 32" fill="none">
-                                                            <Rect width="32" height="32" rx="16" fill="#FEFEFF" />
-                                                            <Path d="M8 16H24" stroke="#FF6936" strokeWidth={1.5} strokeLinecap="round" strokeLinejoin="round" />
-                                                            <Path d="M16 24V8" stroke="#FF6936" strokeWidth={1.5} strokeLinecap="round" strokeLinejoin="round" />
-                                                        </Svg>
-                                                    </>
-                                                )}
-                                                <View style={{ flexDirection: 'row', alignItems: 'flex-start', gap: 16 }}>
-                                                    <View style={{ width: 48, height: 48, borderRadius: 24, alignItems: 'center', justifyContent: 'center', backgroundColor: status === 'completed' ? '#f97316' : '#111827', zIndex: 1 }}>
-                                                        {status === 'completed' ? (
-                                                            <Svg width={32} height={33} viewBox="0 0 32 33" fill="none">
-                                                                <Path d="M16.0003 3.16699C8.65366 3.16699 2.66699 9.15366 2.66699 16.5003C2.66699 23.847 8.65366 29.8337 16.0003 29.8337C23.347 29.8337 29.3337 23.847 29.3337 16.5003C29.3337 9.15366 23.347 3.16699 16.0003 3.16699Z" fill="transparent"/>
-                                                                <Path d="M22.3737 13.4337L14.8137 20.9937C14.627 21.1803 14.3737 21.287 14.107 21.287C13.8403 21.287 13.587 21.1803 13.4003 20.9937L9.62699 17.2203C9.24033 16.8337 9.24033 16.1937 9.62699 15.807C10.0137 15.4203 10.6537 15.4203 11.0403 15.807L14.107 18.8737L20.9603 12.0203C21.347 11.6337 21.987 11.6337 22.3737 12.0203C22.7603 12.407 22.7603 13.0337 22.3737 13.4337Z" fill="#fff"/>
-                                                            </Svg>
-                                                        ) : (
-                                                            <Text style={{ color: '#fff', fontSize: 18, fontWeight: '600' }}>{idx + 1}</Text>
-                                                        )}
-                                                    </View>
-                                                    <View style={{ flex: 1, paddingTop: 4 }}>
-                                                        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
-                                                            <Text style={{ fontSize: 36, fontWeight: '700', color: status === 'active' ? '#111827' : '#9ca3af' }}>10</Text>
-                                                            <Text style={{ fontSize: 24, color: status === 'active' ? '#9ca3af' : '#d1d5db' }}>Reps</Text>
-                                                            <Text style={{ fontSize: 24, color: status === 'active' ? '#9ca3af' : '#d1d5db', marginHorizontal: 8 }}>/</Text>
-                                                            <Text style={{ fontSize: 36, fontWeight: '700', color: status === 'active' ? '#111827' : '#9ca3af' }}>65</Text>
-                                                            <Text style={{ fontSize: 24, color: status === 'active' ? '#9ca3af' : '#d1d5db' }}>Pounds</Text>
-                                                        </View>
-                                                        {idx < 2 && (
-                                                            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, marginTop: 21 }}>
-                                                                <Text style={{ color: '#9ca3af', fontSize: 14 }}>0:15 Rest</Text>
-                                                            </View>
-                                                        )}
-                                                        {idx === 2 && (
-                                                            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, marginTop: 22.5 }}>
-                                                                <Text style={{ color: '#f97316', fontSize: 24 }}>Add Set</Text>
-                                                            </View>
-                                                        )}
-                                                    </View>
-                                                </View>
-                                            </View>
-                                        );
-                                    })}
-                                    </View>
-                                    {showTimer && (
-                                        <View style={{ position: 'absolute', left: 0, right: 0, bottom: 0, justifyContent: 'flex-end', alignItems: 'center', borderBottomLeftRadius: 28, borderBottomRightRadius: 28, zIndex: 10, paddingBottom: 32 }}>
-                                            <View style={{ minWidth: 320, maxWidth: 400, width: '90%', backgroundColor: '#e5e7eb', borderRadius: 18, padding: 24, alignItems: 'center', elevation: 8 }}>
-                                                <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'center', width: '100%', marginBottom: 8 }}>
-                                                    <Text style={{ fontWeight: '700', fontSize: 20, textAlign: 'center', width: '99%' }}>Reset</Text>
-                                                    <View style={{ flex: 1, alignItems: 'flex-end' }}>
-                                                        <TouchableOpacity onPress={() => setShowTimer(false)} style={{ padding: 4 }}>
-                                                            <Svg width={24} height={24} viewBox="0 0 24 24" fill="none">
-                                                                <Path d="M15.7128 16.7726L7.22748 8.28728C6.93757 7.99737 6.93757 7.51653 7.22748 7.22662C7.5174 6.93671 7.99823 6.93671 8.28814 7.22662L16.7734 15.7119C17.0633 16.0018 17.0633 16.4826 16.7734 16.7726C16.4835 17.0625 16.0027 17.0625 15.7128 16.7726Z" fill="#1C1C1E"/>
-                                                                <Path d="M7.22658 16.7726C6.93666 16.4826 6.93666 16.0018 7.22658 15.7119L15.7119 7.22662C16.0018 6.93671 16.4826 6.93671 16.7725 7.22662C17.0624 7.51653 17.0624 7.99737 16.7725 8.28728L8.28724 16.7726C7.99732 17.0625 7.51649 17.0625 7.22658 16.7726Z" fill="#1C1C1E"/>
-                                                            </Svg>
-                                                        </TouchableOpacity>
-                                                    </View>
-                                                </View>
-                                                <View style={{ flexDirection: 'row', width: '100%', marginTop: 18, gap: 8 }}>
-                                                    <TouchableOpacity style={{ flex: 1, alignItems: 'center' }} onPress={() => setTimerSeconds(prev => Math.max(prev - 10, 0))}>
-                                                        <Svg width={25} height={24} viewBox="0 0 25 24" fill="none">
-                                                            <Path d="M12.5001 4.65039C7.72008 4.65039 3.83008 8.54039 3.83008 13.3204C3.83008 18.1004 7.72008 22.0004 12.5001 22.0004C17.2801 22.0004 21.1701 18.1104 21.1701 13.3304C21.1701 8.55039 17.2801 4.65039 12.5001 4.65039ZM13.2501 13.0004C13.2501 13.4104 12.9101 13.7504 12.5001 13.7504C12.0901 13.7504 11.7501 13.4104 11.7501 13.0004V8.00039C11.7501 7.59039 12.0901 7.25039 12.5001 7.25039C12.9101 7.25039 13.2501 7.59039 13.2501 8.00039V13.0004Z" fill="#777778"/>
-                                                            <Path d="M15.3896 3.45H9.60965C9.20965 3.45 8.88965 3.13 8.88965 2.73C8.88965 2.33 9.20965 2 9.60965 2H15.3896C15.7896 2 16.1096 2.32 16.1096 2.72C16.1096 3.12 15.7896 3.45 15.3896 3.45Z" fill="#777778"/>
-                                                        </Svg>
-                                                        <Text style={{ fontSize: 14, color: '#222', marginTop: 2, fontWeight: '500' }}>Decrease 10 sec</Text>
-                                                    </TouchableOpacity>
-                                                    <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center' }}>
-                                                        <Text style={{ fontWeight: '800', fontSize: 44, color: '#222', marginBottom: 2 }}>{pad(timerSeconds)}</Text>
-                                                    </View>
-                                                    <TouchableOpacity style={{ flex: 1, alignItems: 'center' }} onPress={() => setTimerSeconds(prev => prev + 10)}>
-                                                        <Svg width={25} height={24} viewBox="0 0 25 24" fill="none">
-                                                            <Path d="M12.5001 4.65039C7.72008 4.65039 3.83008 8.54039 3.83008 13.3204C3.83008 18.1004 7.72008 22.0004 12.5001 22.0004C17.2801 22.0004 21.1701 18.1104 21.1701 13.3304C21.1701 8.55039 17.2801 4.65039 12.5001 4.65039ZM13.2501 13.0004C13.2501 13.4104 12.9101 13.7504 12.5001 13.7504C12.0901 13.7504 11.7501 13.4104 11.7501 13.0004V8.00039C11.7501 7.59039 12.0901 7.25039 12.5001 7.25039C12.9101 7.25039 13.2501 7.59039 13.2501 8.00039V13.0004Z" fill="#777778"/>
-                                                            <Path d="M15.3896 3.45H9.60965C9.20965 3.45 8.88965 3.13 8.88965 2.73C8.88965 2.33 9.20965 2 9.60965 2H15.3896C15.7896 2 16.1096 2.32 16.1096 2.72C16.1096 3.12 15.7896 3.45 15.3896 3.45Z" fill="#777778"/>
-                                                        </Svg>
-                                                        <Text style={{ fontSize: 14, color: '#222', marginTop: 2, fontWeight: '500' }}>Increase 10 sec</Text>
-                                                    </TouchableOpacity>
-                                                </View>
-                                                <View style={{ marginTop: 24, alignItems: 'center', width: '100%' }}>
-                                                    <TouchableOpacity onPress={() => setTimerRunning(running => !running)} style={{ alignItems: 'center', justifyContent: 'center' }}>
-                                                        {timerRunning ? (
-                                                            <Svg width={24} height={24} viewBox="0 0 24 24" fill="none">
-                                                                <Rect x="5" y="4" width="4" height="16" rx="2" fill="#FF6936" />
-                                                                <Rect x="15" y="4" width="4" height="16" rx="2" fill="#FF6936" />
-                                                            </Svg>
-                                                        ) : (
-                                                            <Svg width={24} height={24} viewBox="0 0 24 24" fill="none">
-                                                                <Path d="M8 5V19L19 12L8 5Z" fill="#FF6936" />
-                                                            </Svg>
-                                                        )}
-                                                    </TouchableOpacity>
-                                                </View>
-                                            </View>
-                                        </View>
-                                    )}
-                                    {!showTimer && (
-                                        <View style={{ flex: 1, justifyContent: 'flex-end', alignItems: 'center', width: '100%' }}>
-                                            <TouchableOpacity
-                                                style={[styles.logSetButton, { width: '100%' }]} 
-                                                onPress={() => {
-                                                    if (!completedSets[currentSetIdx]) {
-                                                        setShowTimer(true);
-                                                        setTimerRunning(true);
-                                                        setTimerSeconds(15);
-                                                    }
-                                                }}
-                                                disabled={completedSets.every(Boolean)}
-                                            >
-                                                <Text style={styles.logSetButtonText}>{completedSets.every(Boolean) ? 'All Sets Completed' : 'Log Set'}</Text>
-                                            </TouchableOpacity>
-                                        </View>
-                                    )}
-                                </>
-                            }
-                            {completedSets.every(Boolean) && 
-                                <>
-                                    <Text style={{ fontWeight: '700', fontSize: 22, textAlign: 'center', marginBottom: 18 }}>Finish and log your workout?</Text>
-                                    <View style={{ backgroundColor: '#f6f6f6', borderRadius: 18, padding: 18, flexDirection: 'row', justifyContent: 'space-between', marginBottom: 32 }}>
-                                        <View style={{ alignItems: 'center', flex: 1 }}>
-                                            <Text style={{ color: '#9ca3af', fontWeight: '500', fontSize: 13 }}>DURATION</Text>
-                                            <Text style={{ fontWeight: '700', fontSize: 20, marginTop: 2 }}>15:22</Text>
-                                        </View>
-                                        <View style={{ alignItems: 'center', flex: 1 }}>
-                                            <Text style={{ color: '#9ca3af', fontWeight: '500', fontSize: 13 }}>EXERCISE</Text>
-                                            <Text style={{ fontWeight: '700', fontSize: 20, marginTop: 2 }}>2</Text>
-                                        </View>
-                                        <View style={{ alignItems: 'center', flex: 1 }}>
-                                            <Text style={{ color: '#9ca3af', fontWeight: '500', fontSize: 13 }}>VOLUME</Text>
-                                            <Text style={{ fontWeight: '700', fontSize: 20, marginTop: 2 }}>650lbs</Text>
-                                        </View>
-                                        <View style={{ alignItems: 'center', flex: 1 }}>
-                                            <Text style={{ color: '#9ca3af', fontWeight: '500', fontSize: 13 }}>CALORIES</Text>
-                                            <Text style={{ fontWeight: '700', fontSize: 20, marginTop: 2 }}>65kcal</Text>
-                                        </View>
-                                    </View>
-                                    <View style={{ flexDirection: 'row', justifyContent: 'space-between', gap: 18 }}>
+                    <BottomSheetScrollView contentContainerClassName={'pb-20'} className={''}>
+                        <View className='w-full px-4 bg-white/50 py-4'>
+                            {/* Motivational Popup */}
+                            {showMotivationPopup && (
+                                <Animated.View
+                                    style={{
+                                        position: 'absolute',
+                                        top: 0,
+                                        left: 0,
+                                        right: 0,
+                                        bottom: 0,
+                                        backgroundColor: 'rgba(0,0,0,0)',
+                                        justifyContent: 'center',
+                                        alignItems: 'center',
+                                        zIndex: 1000,
+                                        opacity: popupAnim,
+                                    }}
+
+                                >
+                                    <Animated.View
+                                        style={{
+                                            transform: [{ scale: popupScale }],
+                                            backgroundColor: '#FF6936',
+                                            borderRadius: 20,
+                                            padding: 30,
+                                            margin: 20,
+                                            alignItems: 'center',
+                                            shadowColor: '#000',
+                                            shadowOffset: { width: 0, height: 4 },
+                                            shadowOpacity: 0.3,
+                                            shadowRadius: 8,
+                                            elevation: 8,
+                                        }}
+                                    >
+                                        <Text style={{ fontSize: 28, fontWeight: 'bold', color: '#fff', textAlign: 'center', marginBottom: 10 }}>
+                                            {motivationMessage}
+                                        </Text>
+                                        {nextExercise && (
+                                            <Text style={{ fontSize: 16, color: '#fff', textAlign: 'center', opacity: 0.9 }}>
+                                                Next: {nextExercise.name}
+                                            </Text>
+                                        )}
                                         <TouchableOpacity
-                                            style={{ flex: 1, borderWidth: 2, borderColor: '#ff6936', borderRadius: 32, paddingVertical: 18, alignItems: 'center', backgroundColor: '#fff' }}
-                                            onPress={closeModal}
-                                        >
-                                            <Text style={{ color: '#ff6936', fontWeight: '600', fontSize: 18 }}>Resume</Text>
-                                        </TouchableOpacity>
-                                        <TouchableOpacity
-                                            style={{ flex: 1, backgroundColor: '#ff6936', borderRadius: 32, paddingVertical: 18, alignItems: 'center' }}
-                                            onPress={() => {
-                                                // TODO: Implement log workout functionality
-                                                closeModal();
+                                            onPress={motivationMessage != 'Workout logged! 🎉' ? hideMotivationPopupAnimation : () => {
+                                                handleClosePress()
+                                                setSelectedWorkoutId(null)
+                                                setSelectedExerciseId(null)
+                                                setCurrentSetIdx(0)
+                                                setShowTimer(false)
+                                                setTimerSeconds(0)
+                                            }}
+                                            style={{
+                                                marginTop: 20,
+                                                backgroundColor: '#fff',
+                                                paddingHorizontal: 24,
+                                                paddingVertical: 12,
+                                                borderRadius: 25,
                                             }}
                                         >
-                                            <Text style={{ color: '#fff', fontWeight: '600', fontSize: 18 }}>Log Workout</Text>
+                                            <Text style={{ color: '#FF6936', fontSize: 16, fontWeight: '600' }}>
+                                                {nextExercise ? 'Continue' : 'Finish'}
+                                            </Text>
                                         </TouchableOpacity>
-                                    </View>
-                                </>
-                            }
+                                    </Animated.View>
+                                </Animated.View>
+                            )}
+
+                            <Animated.View
+                                style={{
+                                    opacity: fadeAnim,
+                                    transform: [
+                                        { translateY: slideAnim },
+                                        { scale: scaleAnim }
+                                    ]
+                                }}
+                            >
+                                {selectedWorkout && !selectedExerciseId && (
+                                    <>
+                                        <TouchableOpacity
+                                            onPress={() => {
+                                                handleClosePress()
+                                                setSelectedWorkoutId(null)
+                                                setSelectedExerciseId(null)
+                                                setCurrentSetIdx(0)
+                                                setShowTimer(false)
+                                                setTimerSeconds(0)
+                                            }}
+                                            style={{
+                                                alignSelf: 'flex-start',
+                                                backgroundColor: '#FF6936',
+                                                paddingHorizontal: 18,
+                                                paddingVertical: 8,
+                                                borderRadius: 20,
+                                                marginBottom: 16,
+                                                marginLeft: 0,
+                                            }}
+                                            activeOpacity={0.85}
+                                        >
+                                            <Text style={{ color: '#fff', fontWeight: '600', fontSize: 16 }}>
+                                                ← Back
+                                            </Text>
+                                        </TouchableOpacity>
+                                        <Text style={[styles.modalWorkoutName, { width: '100%', textAlign: 'center', alignSelf: 'center', fontWeight: '700' }]}>
+                                            {selectedWorkout.name}
+                                        </Text>
+                                        <Text style={[styles.modalWorkoutSub, { width: '100%', textAlign: 'center', alignSelf: 'center', fontWeight: '500' }]}>
+                                            Select an exercise to begin
+                                        </Text>
+                                        <View style={{ width: '100%', alignSelf: 'center', maxWidth: 400, padding: 0 }}>
+                                            {selectedWorkout.exercises.map((exercise) => {
+                                                const allSetsCompleted = exercise.sets.every(set => set.completed);
+                                                return (
+                                                    <TouchableOpacity
+                                                        key={exercise.id}
+                                                        style={[
+                                                            styles.workoutTypeCard,
+                                                            { marginBottom: 16 },
+                                                            allSetsCompleted && { opacity: 0.6, borderColor: '#10B981', borderWidth: 2, backgroundColor: '#F0FFF4' }
+                                                        ]}
+                                                        activeOpacity={0.85}
+                                                        onPress={() => handleExerciseSelect(exercise.id)}
+                                                        disabled={allSetsCompleted}
+                                                    >
+                                                        <View style={styles.workoutTypeLeft}>
+                                                            <View style={[styles.workoutIcon, { backgroundColor: '#FFF0E5' }]}><Text style={styles.workoutIconText}>{exercise.name.charAt(0)}</Text></View>
+                                                            <View style={styles.workoutInfo}>
+                                                                <Text style={styles.workoutName}>{exercise.name}</Text>
+                                                                <Text style={styles.workoutDetails}>{exercise.sets.length} sets</Text>
+                                                            </View>
+                                                        </View>
+                                                        <View style={styles.workoutTypeRight}>
+                                                            {allSetsCompleted ? (
+                                                                <Text style={{ color: '#10B981', fontWeight: '700', fontSize: 16 }}>✓ Completed</Text>
+                                                            ) : (
+                                                                <Text style={styles.caloriesText}>{exercise.sets.length} sets</Text>
+                                                            )}
+                                                        </View>
+                                                    </TouchableOpacity>
+                                                );
+                                            })}
+                                        </View>
+                                        {/* Reset and Log Workout buttons */}
+                                        <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginTop: 24, gap: 12 }}>
+                                            <TouchableOpacity
+                                                style={{ flex: 1, borderWidth: 2, borderColor: '#FF6936', borderRadius: 32, paddingVertical: 16, alignItems: 'center', backgroundColor: '#fff' }}
+                                                onPress={() => {
+                                                    // Reset all sets in this workout
+                                                    setWorkoutTypes(prevWorkouts => prevWorkouts.map(w =>
+                                                        w.id === selectedWorkoutId
+                                                            ? { ...w, exercises: w.exercises.map(ex => ({ ...ex, sets: ex.sets.map(set => ({ ...set, completed: false })) })) }
+                                                            : w
+                                                    ));
+                                                    setCurrentSetIdx(0);
+                                                    setShowTimer(false);
+                                                    setTimerSeconds(0);
+                                                }}
+                                            >
+                                                <Text style={{ color: '#FF6936', fontWeight: '600', fontSize: 18 }}>Reset</Text>
+                                            </TouchableOpacity>
+                                            <TouchableOpacity
+                                                style={{ flex: 1, backgroundColor: '#FF6936', borderRadius: 32, paddingVertical: 16, alignItems: 'center' }}
+                                                onPress={() => {
+                                                    // Placeholder: log workout (show a popup or toast)
+                                                    setMotivationMessage('Workout logged! 🎉');
+                                                    setNextExercise(null);
+                                                    showMotivationPopupAnimation();
+                                                }}
+                                            >
+                                                <Text style={{ color: '#fff', fontWeight: '600', fontSize: 18 }}>Log Workout</Text>
+                                            </TouchableOpacity>
+                                        </View>
+                                    </>
+                                )}
+                                {selectedExercise && (
+                                    <>
+                                        <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 16 }}>
+                                            <TouchableOpacity
+                                                onPress={() => setSelectedExerciseId(null)}
+                                                style={{ marginRight: 12 }}
+                                            >
+                                                <Text style={{ color: '#FF6936', fontSize: 16 }}>← Back</Text>
+                                            </TouchableOpacity>
+                                            <Text style={[styles.modalWorkoutName, { textAlign: 'right', fontWeight: '700' }]}>
+                                                {selectedExercise.name}
+                                            </Text>
+                                        </View>
+                                        <View style={{ width: '100%', alignSelf: 'center', maxWidth: 400, padding: 0 }}>
+                                            {selectedExercise.sets.map((set, index) => {
+                                                const isCompleted = set.completed;
+                                                const isCurrent = currentSetIdx === index;
+                                                return (
+                                                    <View
+                                                        key={set.id}
+                                                        style={[
+                                                            styles.workoutTypeCard,
+                                                            isCompleted && styles.workoutTypeCardCompleted,
+                                                            isCurrent && !isCompleted && { borderColor: '#FF6936', borderWidth: 2 }
+                                                        ]}
+                                                    >
+                                                        <View style={styles.workoutTypeLeft}>
+                                                            <View style={[
+                                                                styles.workoutIcon,
+                                                                {
+                                                                    backgroundColor: isCompleted ? '#10B981' : '#FFF0E5',
+                                                                    width: 48,
+                                                                    height: 48,
+                                                                    borderRadius: 24
+                                                                }
+                                                            ]}>
+                                                                {isCompleted ? (
+                                                                    <Text style={{ color: '#fff', fontSize: 20, fontWeight: 'bold' }}>✓</Text>
+                                                                ) : (
+                                                                    <Text style={{ color: '#FF6936', fontSize: 18, fontWeight: '600' }}>{index + 1}</Text>
+                                                                )}
+                                                            </View>
+                                                            <View style={styles.workoutInfo}>
+                                                                <Text style={[styles.workoutName, { fontSize: 20, fontWeight: '600' }]}>
+                                                                    Set {index + 1}
+                                                                </Text>
+                                                                <Text style={styles.workoutDetails}>
+                                                                    {set.reps} reps • {set.weight}lbs
+                                                                </Text>
+                                                                {isCompleted && (set.actualReps !== undefined || set.actualWeight !== undefined) && (
+                                                                    <Text style={{ color: '#FF6936', fontSize: 14, marginTop: 2 }}>
+                                                                        Actual: {set.actualReps ?? set.reps} reps @ {set.actualWeight ?? set.weight} lbs
+                                                                    </Text>
+                                                                )}
+                                                            </View>
+                                                        </View>
+                                                        <View style={styles.workoutTypeRight}>
+                                                            {!isCompleted && isCurrent && (
+                                                                <TouchableOpacity
+                                                                    style={[styles.logSetButton, { paddingHorizontal: 20, paddingVertical: 8 }]}
+                                                                    onPress={() => handleSetComplete(set.id)}
+                                                                >
+                                                                    <Text style={styles.logSetButtonText}>Complete</Text>
+                                                                </TouchableOpacity>
+                                                            )}
+                                                            {isCompleted && (
+                                                                <Text style={[styles.caloriesText, { color: '#10B981' }]}>Completed</Text>
+                                                            )}
+                                                        </View>
+                                                    </View>
+                                                );
+                                            })}
+                                        </View>
+                                        {showTimer && (
+                                            <View style={{ marginTop: 20, alignItems: 'center' }}>
+                                                <Text style={{ fontSize: 18, fontWeight: '600', marginBottom: 8 }}>
+                                                    Rest Timer
+                                                </Text>
+                                                <Text style={{ fontSize: 36, fontWeight: '700', color: '#FF6936' }}>
+                                                    {Math.floor(timerSeconds / 60)}:{(timerSeconds % 60).toString().padStart(2, '0')}
+                                                </Text>
+                                                <Text style={{ fontSize: 14, color: '#6B7280', marginTop: 4 }}>
+                                                    Next set ready
+                                                </Text>
+                                            </View>
+                                        )}
+                                    </>
+                                )}
+                                {completedSets.every(Boolean) && selectedExercise && (
+                                    <>
+                                        <View style={{ alignItems: 'center', padding: 20 }}>
+                                            <Text style={{ fontSize: 24, fontWeight: '700', marginBottom: 8 }}>
+                                                Great job! 🎉
+                                            </Text>
+                                            <Text style={{ fontSize: 16, color: '#6B7280', textAlign: 'center' }}>
+                                                You've completed all sets for {selectedExercise.name}
+                                            </Text>
+                                        </View>
+                                    </>
+                                )}
+                            </Animated.View>
+                        </View>
+                    </BottomSheetScrollView>
+                </BottomSheet>
+                {/* Custom Workout Creation Bottom Sheet */}
+                <BottomSheet
+                    ref={customSheetRef}
+                    index={-1}
+                    snapPoints={customSnapPoints}
+                    enablePanDownToClose
+                >
+                    <BottomSheetScrollView contentContainerClassName={'pb-20'} className={''}>
+                        <CustomWorkoutSheet
+                            onClose={() => { }}
+                            onSave={(workout: CustomWorkout) => {
+                                // Convert all exercise and set IDs to numbers and add completed: false to each set
+                                setWorkoutTypes(prev => [
+                                    ...prev,
+                                    {
+                                        id: Date.now(),
+                                        name: workout.name,
+                                        icon: '✨',
+                                        exercises: workout.exercises.map((ex, exIdx) => ({
+                                            id: exIdx + 1000 + prev.length * 100, // unique numeric id
+                                            name: ex.name,
+                                            sets: ex.sets.map((set, setIdx) => ({
+                                                id: setIdx + 1,
+                                                reps: set.reps,
+                                                weight: set.weight,
+                                                completed: false,
+                                                actualReps: set.actualReps,
+                                                actualWeight: set.actualWeight
+                                            }))
+                                        }))
+                                    }
+                                ]);
+                                customSheetRef.current?.close();
+                            }}
+                        />
+                    </BottomSheetScrollView>
+                </BottomSheet>
+                {/* Modal for actual input */}
+                <Modal
+                    visible={showActualModal}
+                    transparent
+                    animationType="none"
+                    onRequestClose={() => setShowActualModal(false)}
+                >
+                    <View style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.5)', justifyContent: 'center', alignItems: 'center' }}>
+                        <Animated.View
+                            style={{
+                                backgroundColor: '#fff',
+                                borderRadius: 24,
+                                padding: 28,
+                                width: 340,
+                                alignItems: 'center',
+                                shadowColor: '#000',
+                                shadowOffset: { width: 0, height: 8 },
+                                shadowOpacity: 0.15,
+                                shadowRadius: 16,
+                                elevation: 8,
+                                opacity: modalAnim,
+                                transform: [
+                                    { scale: modalAnim.interpolate({ inputRange: [0, 1], outputRange: [0.85, 1] }) }
+                                ]
+                            }}
+                        >
+                            <Text style={{ fontSize: 32, marginBottom: 8 }}>🏋️‍♂️</Text>
+                            <Text style={{ fontSize: 22, fontWeight: '700', marginBottom: 4 }}>Log Your Set</Text>
+                            <Text style={{ fontSize: 15, color: '#6B7280', marginBottom: 16, textAlign: 'center' }}>
+                                Enter the actual reps and weight you performed for this set.
+                            </Text>
+                            <View style={{ width: '100%', marginBottom: 12, alignItems: 'center' }}>
+                                <Text style={{ fontSize: 16, color: '#9CA3AF' }}>Target</Text>
+                                <Text style={{ fontSize: 18, fontWeight: '600', color: '#FF6936' }}>{pendingSet?.targetReps} reps @ {pendingSet?.targetWeight} lbs</Text>
+                            </View>
+                            <View style={{ width: '100%', height: 1, backgroundColor: '#F3F4F6', marginVertical: 12 }} />
+                            <View style={{ width: '100%', marginBottom: 8 }}>
+                                <Text style={{ fontSize: 16, marginBottom: 4 }}>Actual Reps</Text>
+                                <TextInput
+                                    value={String(actualReps)}
+                                    onChangeText={v => setActualReps(Number(v))}
+                                    keyboardType="numeric"
+                                    style={{ borderWidth: 1, borderColor: '#E5E7EB', borderRadius: 8, padding: 10, fontSize: 16, marginBottom: 8 }}
+                                />
+                                <Text style={{ fontSize: 16, marginBottom: 4 }}>Actual Weight (lbs)</Text>
+                                <TextInput
+                                    value={String(actualWeight)}
+                                    onChangeText={v => setActualWeight(Number(v))}
+                                    keyboardType="numeric"
+                                    style={{ borderWidth: 1, borderColor: '#E5E7EB', borderRadius: 8, padding: 10, fontSize: 16, marginBottom: 8 }}
+                                />
+                            </View>
+                            <View style={{ flexDirection: 'row', gap: 12, width: '100%', marginTop: 8 }}>
+                                <TouchableOpacity
+                                    style={{ flex: 1, borderWidth: 2, borderColor: '#FF6936', borderRadius: 32, paddingVertical: 14, alignItems: 'center', backgroundColor: '#fff' }}
+                                    onPress={() => setShowActualModal(false)}
+                                >
+                                    <Text style={{ color: '#FF6936', fontWeight: '600', fontSize: 17 }}>Cancel</Text>
+                                </TouchableOpacity>
+                                <TouchableOpacity
+                                    style={{ flex: 1, backgroundColor: '#FF6936', borderRadius: 32, paddingVertical: 14, alignItems: 'center', shadowColor: '#FF6936', shadowOpacity: 0.15, shadowRadius: 8 }}
+                                    onPress={handleConfirmActual}
+                                >
+                                    <Text style={{ color: '#fff', fontWeight: '700', fontSize: 17 }}>Confirm</Text>
+                                </TouchableOpacity>
+                            </View>
                         </Animated.View>
-                    </Animated.View>
+                    </View>
                 </Modal>
             </ScrollView>
         </View>
@@ -840,7 +1372,6 @@ const styles = StyleSheet.create({
     },
     content: {
         flex: 1,
-        paddingHorizontal: 24,
     },
     calendarSection: {
         marginBottom: 20,
@@ -958,6 +1489,10 @@ const styles = StyleSheet.create({
     workoutTypeCardSelected: {
         borderColor: '#FF6936',
     },
+    workoutTypeCardCompleted: {
+        borderColor: '#E5E5E5',
+        backgroundColor: '#F5F5F5',
+    },
     workoutTypeLeft: {
         flexDirection: 'row',
         alignItems: 'center',
@@ -1036,5 +1571,183 @@ const styles = StyleSheet.create({
         fontSize: 16,
     },
 });
+
+type CustomWorkoutSheetProps = {
+    onClose: () => void;
+    onSave: (workout: CustomWorkout) => void;
+};
+function CustomWorkoutSheet({ onSave }: CustomWorkoutSheetProps) {
+    const [step, setStep] = useState(1);
+    const [workoutName, setWorkoutName] = useState('');
+    const [exercises, setExercises] = useState<any[]>([]);
+    const [exerciseSearch, setExerciseSearch] = useState('');
+    const [selectedExercise, setSelectedExercise] = useState('');
+    const [setsForExercise, setSetsForExercise] = useState(3);
+    const [repsForSet, setRepsForSet] = useState(10);
+    const [weightForSet, setWeightForSet] = useState(0);
+    if (step === 1) {
+        return (
+            <View style={{ flex: 1, padding: 24, backgroundColor: '#fff', justifyContent: 'center' }}>
+                <Text style={{ fontSize: 28, fontWeight: '700', marginBottom: 24 }}>Name your workout</Text>
+                <TextInput
+                    value={workoutName}
+                    onChangeText={setWorkoutName}
+                    placeholder="e.g. Push Day, Full Body, Custom..."
+                    style={{ borderWidth: 1, borderColor: '#E5E7EB', borderRadius: 12, padding: 16, fontSize: 18, marginBottom: 32 }}
+                />
+                <TouchableOpacity
+                    style={{ backgroundColor: '#FF6936', borderRadius: 32, paddingVertical: 18, alignItems: 'center' }}
+                    onPress={() => setStep(2)}
+                    disabled={!workoutName.trim()}
+                >
+                    <Text style={{ color: '#fff', fontWeight: '600', fontSize: 18 }}>Next</Text>
+                </TouchableOpacity>
+            </View>
+        );
+    }
+    if (step === 2) {
+        const filteredExercises = EXERCISE_LIBRARY.filter((e: string) => e.toLowerCase().includes(exerciseSearch.toLowerCase()));
+        return (
+            <View style={{ flex: 1, padding: 24, backgroundColor: '#fff' }}>
+                <Text style={{ fontSize: 24, fontWeight: '700', marginBottom: 12 }}>Add exercises</Text>
+                <TextInput
+                    value={exerciseSearch}
+                    onChangeText={setExerciseSearch}
+                    placeholder="Search or create exercise"
+                    style={{ borderWidth: 1, borderColor: '#E5E7EB', borderRadius: 12, padding: 14, fontSize: 16, marginBottom: 12 }}
+                />
+                <ScrollView style={{ maxHeight: 180, marginBottom: 12 }}>
+                    {filteredExercises.map((ex: string, idx: number) => (
+                        <TouchableOpacity
+                            key={ex + idx}
+                            style={{ padding: 12, borderBottomWidth: 1, borderColor: '#F3F4F6' }}
+                            onPress={() => setSelectedExercise(ex)}
+                        >
+                            <Text style={{ fontSize: 16 }}>{ex}</Text>
+                        </TouchableOpacity>
+                    ))}
+                    {exerciseSearch.length > 0 && !EXERCISE_LIBRARY.includes(exerciseSearch) && (
+                        <TouchableOpacity
+                            style={{ padding: 12, backgroundColor: '#FFF0E5', borderRadius: 8, marginTop: 8 }}
+                            onPress={() => setSelectedExercise(exerciseSearch)}
+                        >
+                            <Text style={{ fontSize: 16, color: '#FF6936' }}>+ Create "{exerciseSearch}"</Text>
+                        </TouchableOpacity>
+                    )}
+                </ScrollView>
+                {selectedExercise ? (
+                    <View style={{ marginTop: 12, marginBottom: 24 }}>
+                        <Text style={{ fontSize: 18, fontWeight: '600', marginBottom: 8 }}>{selectedExercise}</Text>
+                        <Text>Sets:</Text>
+                        <TextInput
+                            value={String(setsForExercise)}
+                            onChangeText={v => setSetsForExercise(Number(v))}
+                            keyboardType="numeric"
+                            style={{ borderWidth: 1, borderColor: '#E5E7EB', borderRadius: 8, padding: 8, marginBottom: 8 }}
+                        />
+                        <Text>Reps per set:</Text>
+                        <TextInput
+                            value={String(repsForSet)}
+                            onChangeText={v => setRepsForSet(Number(v))}
+                            keyboardType="numeric"
+                            style={{ borderWidth: 1, borderColor: '#E5E7EB', borderRadius: 8, padding: 8, marginBottom: 8 }}
+                        />
+                        <Text>Weight per set (lbs):</Text>
+                        <TextInput
+                            value={String(weightForSet)}
+                            onChangeText={v => setWeightForSet(Number(v))}
+                            keyboardType="numeric"
+                            style={{ borderWidth: 1, borderColor: '#E5E7EB', borderRadius: 8, padding: 8, marginBottom: 8 }}
+                        />
+                        <TouchableOpacity
+                            style={{ backgroundColor: '#FF6936', borderRadius: 24, paddingVertical: 12, alignItems: 'center', marginTop: 8 }}
+                            onPress={() => {
+                                setExercises(prev => [
+                                    ...prev,
+                                    {
+                                        id: Date.now().toString(),
+                                        name: selectedExercise,
+                                        sets: Array.from({ length: setsForExercise }, () => ({ reps: repsForSet, weight: weightForSet, actualReps: undefined, actualWeight: undefined }))
+                                    }
+                                ]);
+                                setSelectedExercise('');
+                                setSetsForExercise(3);
+                                setRepsForSet(10);
+                                setWeightForSet(0);
+                            }}
+                        >
+                            <Text style={{ color: '#fff', fontWeight: '600', fontSize: 16 }}>Add Exercise</Text>
+                        </TouchableOpacity>
+                    </View>
+                ) : null}
+                <Text style={{ fontWeight: '700', fontSize: 16, marginTop: 12 }}>Exercises in this workout:</Text>
+                <FlatList
+                    data={exercises}
+                    keyExtractor={item => item.id}
+                    renderItem={({ item, index }: { item: any; index: number }) => (
+                        <View style={{ flexDirection: 'row', alignItems: 'center', marginVertical: 6, backgroundColor: '#F3F4F6', borderRadius: 8, padding: 8 }}>
+                            <Text style={{ flex: 1, fontSize: 16 }}>{item.name} ({item.sets.length} sets)</Text>
+                            <TouchableOpacity onPress={() => setExercises(prev => prev.filter((_, i) => i !== index))}>
+                                <Text style={{ color: '#FF6936', fontWeight: '700', fontSize: 16 }}>Remove</Text>
+                            </TouchableOpacity>
+                        </View>
+                    )}
+                />
+                <View style={{ flexDirection: 'row', marginTop: 24, gap: 12 }}>
+                    <TouchableOpacity
+                        style={{ flex: 1, borderWidth: 2, borderColor: '#FF6936', borderRadius: 32, paddingVertical: 16, alignItems: 'center', backgroundColor: '#fff' }}
+                        onPress={() => setStep(1)}
+                    >
+                        <Text style={{ color: '#FF6936', fontWeight: '600', fontSize: 18 }}>Back</Text>
+                    </TouchableOpacity>
+                    <TouchableOpacity
+                        style={{ flex: 1, backgroundColor: '#FF6936', borderRadius: 32, paddingVertical: 16, alignItems: 'center' }}
+                        onPress={() => setStep(3)}
+                        disabled={exercises.length === 0}
+                    >
+                        <Text style={{ color: '#fff', fontWeight: '600', fontSize: 18 }}>Next</Text>
+                    </TouchableOpacity>
+                </View>
+            </View>
+        );
+    }
+    if (step === 3) {
+        return (
+            <View style={{ flex: 1, padding: 24, backgroundColor: '#fff' }}>
+                <Text style={{ fontSize: 24, fontWeight: '700', marginBottom: 12 }}>Review your workout</Text>
+                <Text style={{ fontSize: 18, fontWeight: '600', marginBottom: 8 }}>{workoutName}</Text>
+                <FlatList
+                    data={exercises}
+                    keyExtractor={item => item.id}
+                    renderItem={({ item }: { item: any }) => (
+                        <View style={{ marginBottom: 12, backgroundColor: '#F3F4F6', borderRadius: 8, padding: 10 }}>
+                            <Text style={{ fontWeight: '700', fontSize: 16 }}>{item.name}</Text>
+                            {item.sets.map((set: any, idx: number) => (
+                                <Text key={idx} style={{ marginLeft: 8, color: '#6B7280' }}>Set {idx + 1}: {set.reps} reps @ {set.weight} lbs</Text>
+                            ))}
+                        </View>
+                    )}
+                />
+                <View style={{ flexDirection: 'row', marginTop: 24, gap: 12 }}>
+                    <TouchableOpacity
+                        style={{ flex: 1, borderWidth: 2, borderColor: '#FF6936', borderRadius: 32, paddingVertical: 16, alignItems: 'center', backgroundColor: '#fff' }}
+                        onPress={() => setStep(2)}
+                    >
+                        <Text style={{ color: '#FF6936', fontWeight: '600', fontSize: 18 }}>Back</Text>
+                    </TouchableOpacity>
+                    <TouchableOpacity
+                        style={{ flex: 1, backgroundColor: '#FF6936', borderRadius: 32, paddingVertical: 16, alignItems: 'center' }}
+                        onPress={() => {
+                            onSave({ name: workoutName, exercises });
+                        }}
+                    >
+                        <Text style={{ color: '#fff', fontWeight: '600', fontSize: 18 }}>Save Workout</Text>
+                    </TouchableOpacity>
+                </View>
+            </View>
+        );
+    }
+    return null;
+}
 
 export default WorkoutLog;
