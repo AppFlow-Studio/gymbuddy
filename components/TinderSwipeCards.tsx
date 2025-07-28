@@ -1,5 +1,7 @@
-import React, { useRef, useState } from 'react';
-import { Animated, Dimensions, PanResponder, StyleSheet, View } from 'react-native';
+import React, { useEffect, useRef, useState } from 'react';
+import { Animated, Dimensions, PanResponder, StyleSheet, Text, View } from 'react-native';
+import { useProfileStore } from '../utils/profile-store';
+import MatchModal from './MatchModal';
 
 const SCREEN_WIDTH = Dimensions.get('window').width;
 const SCREEN_HEIGHT = Dimensions.get('window').height;
@@ -22,10 +24,36 @@ type TinderSwipeCardsProps<T> = {
     setMatchedProfile?: (item: T) => void;
 };
 
-export function TinderSwipeCards<T>({ data, renderCard, onSwipeLeft, onSwipeRight, setMatchedProfile }: TinderSwipeCardsProps<T>) {
+export function TinderSwipeCards<T>({ data, renderCard, onSwipeLeft, onSwipeRight }: TinderSwipeCardsProps<T>) {
     const [cardIndex, setCardIndex] = useState(0);
     const [swiping, setSwiping] = useState(false);
+    const [showMatchModal, setShowMatchModal] = useState(false);
+    const [matchedProfile, setMatchedProfile] = useState<T | null>(null);
     const position = useRef(new Animated.ValueXY()).current;
+
+    // Get user profile from store
+    const userProfile = useProfileStore((state: any) => state.profile);
+
+    // Watch for matchedProfile changes to show modal
+    useEffect(() => {
+        console.log('TinderSwipeCards - matchedProfile changed:', matchedProfile);
+        if (matchedProfile) {
+            console.log('TinderSwipeCards - showing match modal for:', matchedProfile);
+            setShowMatchModal(true);
+        }
+    }, [matchedProfile]);
+
+    // Watch for showMatchModal changes
+    useEffect(() => {
+        console.log('TinderSwipeCards - showMatchModal changed to:', showMatchModal);
+    }, [showMatchModal]);
+
+    // Reset matchedProfile when modal closes
+    const handleCloseModal = () => {
+        setShowMatchModal(false);
+        setMatchedProfile(null);
+    };
+
     const panResponder = useRef(
         PanResponder.create({
             onMoveShouldSetPanResponder: () => true,
@@ -55,20 +83,34 @@ export function TinderSwipeCards<T>({ data, renderCard, onSwipeLeft, onSwipeRigh
             toValue: { x, y: 0 },
             duration: SWIPE_OUT_DURATION,
             useNativeDriver: false,
-        }).start(() => onSwipeComplete(direction));
+        }).start(() => onSwipeComplete(direction, cardIndex));
     }
 
-    function onSwipeComplete(direction: 'left' | 'right') {
-        const item = data[cardIndex + 1];
+    function onSwipeComplete(direction: 'left' | 'right', cardIndex: number) {
+        const currentItem = data[cardIndex]; // Get the current card that was swiped
+        console.log('Swipe completed:', direction, 'Card index:', cardIndex, 'Current item:', currentItem);
+        console.log('Current item details:', {
+            name: (currentItem as any)?.name,
+            image: (currentItem as any)?.image,
+            gym: (currentItem as any)?.gym
+        });
+
         if (direction === 'right') {
-            setMatchedProfile?.(item);
-            console.log('matchedProfile', item);
-            onSwipeRight?.(item);
+            console.log('Setting matchedProfile to:', currentItem);
+            setMatchedProfile(data[cardIndex]);
+            console.log('matchedProfile set, should trigger useEffect');
+            onSwipeRight?.(currentItem);
         } else {
-            onSwipeLeft?.(item);
+            onSwipeLeft?.(currentItem);
         }
         position.setValue({ x: 0, y: 0 });
-        setCardIndex(prev => prev + 1);
+        // Small delay to ensure position reset happens after animation
+        setTimeout(() => {
+            setCardIndex(prev => {
+                console.log('Updating cardIndex from', prev, 'to', prev + 1);
+                return prev + 1;
+            });
+        }, 50);
     }
 
     function resetPosition() {
@@ -90,9 +132,25 @@ export function TinderSwipeCards<T>({ data, renderCard, onSwipeLeft, onSwipeRigh
         };
     }
 
+    // Check if we've run out of cards
+    if (cardIndex >= data.length) {
+        console.log('No more cards to show');
+        return (
+            <View style={styles.container}>
+                <Text style={{ fontSize: 18, color: '#666', textAlign: 'center' }}>
+                    No more profiles to show!
+                </Text>
+            </View>
+        );
+    }
+
     // Only show the top 3 cards in the stack
     const renderedCards = [];
+    console.log('Current cardIndex:', cardIndex, 'Data length:', data.length);
+
     for (let i = cardIndex; i < Math.min(cardIndex + STACK_SIZE, data.length); i++) {
+        console.log('Rendering card at index:', i, 'Profile:', data[i]);
+
         if (i === cardIndex) {
             // Top card: swipeable, animated
             renderedCards.push(
@@ -146,7 +204,18 @@ export function TinderSwipeCards<T>({ data, renderCard, onSwipeLeft, onSwipeRigh
     }
 
     // Render in reverse so the top card is last (on top)
-    return <View style={styles.container}>{renderedCards.reverse()}</View>;
+    return (
+        <View style={styles.container} key={`cards-${cardIndex}`}>
+            {renderedCards.reverse()}
+            {/* <MatchModal
+                key={`match-${cardIndex}`}
+                visible={showMatchModal}
+                onClose={handleCloseModal}
+                userProfile={userProfile}
+                matchedProfile={matchedProfile}
+            /> */}
+        </View>
+    );
 }
 
 const styles = StyleSheet.create({

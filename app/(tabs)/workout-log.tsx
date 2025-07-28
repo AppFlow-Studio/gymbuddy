@@ -1,25 +1,11 @@
+import CustomWorkoutSheet, { CustomWorkout } from '@/components/CreateCustomWorkout';
+import { loadCustomWorkouts, saveCustomWorkouts } from '@/utils/local-storage';
 import BottomSheet, { BottomSheetScrollView } from '@gorhom/bottom-sheet';
 import { useRouter } from 'expo-router';
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { Animated, Dimensions, Easing, FlatList, Modal, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
+import { Alert, Animated, Dimensions, Easing, Modal, SafeAreaView, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
 import Svg, { Path } from 'react-native-svg';
 // @ts-ignore
-
-// Type for a custom workout
-interface CustomWorkout {
-    id?: string;
-    name: string;
-    icon?: string;
-    exercises: Array<{
-        id: string;
-        name: string;
-        sets: Array<{ reps: number; weight: number; actualReps?: number; actualWeight?: number }>;
-    }>;
-}
-
-const EXERCISE_LIBRARY: string[] = [
-    'Bench Press', 'Squat', 'Deadlift', 'Pull-up', 'Push-up', 'Chest Fly', 'Barbell Row', 'Overhead Press', 'Lateral Raise', 'Bicep Curl', 'Tricep Extension', 'Leg Press', 'Calf Raise', 'Crunch', 'Plank', 'Russian Twist', 'Burpee', 'Mountain Climber', 'Jump Rope', 'Dumbbell Lunge'
-];
 
 const WorkoutLog = () => {
     const router = useRouter();
@@ -27,6 +13,7 @@ const WorkoutLog = () => {
     // hooks
     const sheetRef = useRef<BottomSheet>(null);
     const customSheetRef = useRef<BottomSheet>(null);
+    const calendarScrollRef = useRef<ScrollView>(null);
     const snapPoints = useMemo(() => ["25%", "50%", "75%", "90%"], []);
     const customSnapPoints = useMemo(() => ["90%"], []);
     // Animation values
@@ -46,6 +33,14 @@ const WorkoutLog = () => {
     const [pendingSet, setPendingSet] = useState<{ setId: number; exerciseId: number; workoutId: number; targetReps: number; targetWeight: number } | null>(null);
     const [actualReps, setActualReps] = useState(0);
     const [actualWeight, setActualWeight] = useState(0);
+
+    // State for editing workouts
+    const [editingWorkout, setEditingWorkout] = useState<any>(null);
+
+    // State for incomplete workout popup
+    const [showIncompletePopup, setShowIncompletePopup] = useState(false);
+    const incompletePopupAnim = useRef(new Animated.Value(0)).current;
+    const incompletePopupScale = useRef(new Animated.Value(0.5)).current;
 
     const motivationalMessages = [
         "Great job! 💪 Keep pushing!",
@@ -137,6 +132,40 @@ const WorkoutLog = () => {
         });
     };
 
+    const showIncompleteWorkoutPopup = () => {
+        setShowIncompletePopup(true);
+        Animated.parallel([
+            Animated.timing(incompletePopupAnim, {
+                toValue: 1,
+                duration: 300,
+                useNativeDriver: true,
+            }),
+            Animated.spring(incompletePopupScale, {
+                toValue: 1,
+                tension: 100,
+                friction: 8,
+                useNativeDriver: true,
+            }),
+        ]).start();
+    };
+
+    const hideIncompleteWorkoutPopup = () => {
+        Animated.parallel([
+            Animated.timing(incompletePopupAnim, {
+                toValue: 0,
+                duration: 200,
+                useNativeDriver: true,
+            }),
+            Animated.timing(incompletePopupScale, {
+                toValue: 0.5,
+                duration: 200,
+                useNativeDriver: true,
+            }),
+        ]).start(() => {
+            setShowIncompletePopup(false);
+        });
+    };
+
     // callbacks
     const handleSnapPress = useCallback((index: number) => {
         sheetRef.current?.snapToIndex(index);
@@ -147,6 +176,46 @@ const WorkoutLog = () => {
     const handleClosePress = useCallback(() => {
         sheetRef.current?.close();
     }, []);
+
+    // Load custom workouts from storage on component mount
+    useEffect(() => {
+        const loadWorkouts = () => {
+            const customWorkouts = loadCustomWorkouts();
+            if (customWorkouts.length > 0) {
+                // Convert stored custom workouts to the workoutTypes format
+                const convertedWorkouts = customWorkouts.map((workout: any, index: number) => ({
+                    id: workout.id || Date.now() + index,
+                    name: workout.name,
+                    icon: workout.icon || '✨',
+                    exercises: workout.exercises.map((ex: any, exIdx: number) => ({
+                        id: ex.id || exIdx + 1000,
+                        name: ex.name,
+                        sets: ex.sets.map((set: any, setIdx: number) => ({
+                            id: set.id || setIdx + 1,
+                            reps: set.reps,
+                            weight: set.weight,
+                            completed: false,
+                            actualReps: set.actualReps,
+                            actualWeight: set.actualWeight
+                        }))
+                    }))
+                }));
+
+                setWorkoutTypes(prev => {
+                    // Filter out any existing custom workouts and add the loaded ones
+                    const defaultWorkouts = prev.filter(w => w.id <= 10); // Assuming default workouts have IDs 1-10
+                    return [...defaultWorkouts, ...convertedWorkouts];
+                });
+            }
+        };
+
+        loadWorkouts();
+    }, []);
+
+    // Monitor editingWorkout changes
+    useEffect(() => {
+        console.log('editingWorkout state changed to:', editingWorkout);
+    }, [editingWorkout]);
 
     // Move workoutTypes into state
     const [workoutTypes, setWorkoutTypes] = useState<Array<{
@@ -214,56 +283,6 @@ const WorkoutLog = () => {
                         { id: 1, reps: 10, weight: 95, completed: false },
                         { id: 2, reps: 10, weight: 95, completed: false },
                         { id: 3, reps: 8, weight: 105, completed: false },
-                    ]
-                }
-            ]
-        },
-        {
-            id: 3,
-            name: 'Leg Day',
-            icon: '🦵',
-            exercises: [
-                {
-                    id: 1,
-                    name: 'Squats',
-                    sets: [
-                        { id: 1, reps: 8, weight: 185, completed: false },
-                        { id: 2, reps: 8, weight: 185, completed: false },
-                        { id: 3, reps: 6, weight: 205, completed: false },
-                    ]
-                },
-                {
-                    id: 2,
-                    name: 'Deadlifts',
-                    sets: [
-                        { id: 1, reps: 6, weight: 225, completed: false },
-                        { id: 2, reps: 6, weight: 225, completed: false },
-                        { id: 3, reps: 4, weight: 245, completed: false },
-                    ]
-                }
-            ]
-        },
-        {
-            id: 4,
-            name: 'Shoulder Day',
-            icon: '💪',
-            exercises: [
-                {
-                    id: 1,
-                    name: 'Overhead Press',
-                    sets: [
-                        { id: 1, reps: 8, weight: 95, completed: false },
-                        { id: 2, reps: 8, weight: 95, completed: false },
-                        { id: 3, reps: 6, weight: 105, completed: false },
-                    ]
-                },
-                {
-                    id: 2,
-                    name: 'Lateral Raises',
-                    sets: [
-                        { id: 1, reps: 12, weight: 15, completed: false },
-                        { id: 2, reps: 12, weight: 15, completed: false },
-                        { id: 3, reps: 10, weight: 20, completed: false },
                     ]
                 }
             ]
@@ -431,24 +450,38 @@ const WorkoutLog = () => {
         }
     }, [workoutTypes, selectedWorkoutId, selectedExerciseId]);
 
-    // Dynamically generate the current week (Sunday to Saturday)
+    // Dynamically generate 7 days centered on current date (3 before, current, 3 after)
     const getCurrentWeekDays = () => {
         const days = [];
         const today = new Date();
-        const startOfWeek = new Date(today);
-        startOfWeek.setDate(today.getDate() - today.getDay()); // Sunday as first day
-        for (let i = 0; i < 7; i++) {
-            const day = new Date(startOfWeek);
-            day.setDate(startOfWeek.getDate() + i);
+
+        // Calculate 3 days before today
+        for (let i = -3; i <= 3; i++) {
+            const day = new Date(today);
+            day.setDate(today.getDate() + i);
             days.push({
                 day: day.getDate(),
                 label: day.toLocaleDateString('en-US', { weekday: 'short' }).toUpperCase(),
                 fullLabel: day.toLocaleDateString('en-US', { weekday: 'long' }),
+                isToday: day.getDate() === today.getDate() && day.getMonth() === today.getMonth() && day.getFullYear() === today.getFullYear(),
             });
         }
         return days;
     };
     const calendarDays = getCurrentWeekDays();
+
+    // Set selected date to today's date on component mount and center the calendar
+    useEffect(() => {
+        const today = new Date();
+        setSelectedDate(today.getDate());
+
+        // Center the calendar on the current day after a short delay
+        setTimeout(() => {
+            // Since we now have 7 days with current day in the middle (index 3), scroll to center it
+            const scrollToX = 3 * 60; // 3rd position (current day) * 60px per day button
+            calendarScrollRef.current?.scrollTo({ x: scrollToX - 120, animated: true }); // Center the current day
+        }, 100);
+    }, []);
 
     const openModal = () => {
         handleSnapPress(3);
@@ -472,9 +505,120 @@ const WorkoutLog = () => {
         }
     }, [showActualModal]);
 
+    // Function to save custom workout
+    const saveCustomWorkout = (workout: CustomWorkout) => {
+        const newWorkout = {
+            ...workout,
+            id: Date.now(),
+            icon: workout.icon || '✨',
+            exercises: workout.exercises.map((ex, exIdx) => ({
+                id: exIdx + 1000,
+                name: ex.name,
+                sets: ex.sets.map((set, setIdx) => ({
+                    id: setIdx + 1,
+                    reps: set.reps,
+                    weight: set.weight,
+                    completed: false,
+                    actualReps: set.actualReps,
+                    actualWeight: set.actualWeight
+                }))
+            }))
+        };
+
+        // Add to workoutTypes state
+        setWorkoutTypes(prev => [...prev, newWorkout]);
+
+        // Save to local storage
+        const customWorkouts = loadCustomWorkouts();
+        customWorkouts.push(workout);
+        saveCustomWorkouts(customWorkouts);
+
+        setEditingWorkout(null);
+        customSheetRef.current?.close();
+    };
+
+    // Function to delete custom workout
+    const deleteCustomWorkout = (workoutId: number) => {
+        const workout = workoutTypes.find(w => w.id === workoutId);
+        Alert.alert(
+            'Delete Workout',
+            `Are you sure you want to delete "${workout?.name}"?`,
+            [
+                { text: 'Cancel', style: 'cancel' },
+                {
+                    text: 'Delete',
+                    style: 'destructive',
+                    onPress: () => {
+                        // Remove from workoutTypes state
+                        setWorkoutTypes(prev => prev.filter(w => w.id !== workoutId));
+
+                        // Remove from local storage
+                        const customWorkouts = loadCustomWorkouts();
+                        const updatedCustomWorkouts = customWorkouts.filter((w: any) => w.id !== workoutId);
+                        saveCustomWorkouts(updatedCustomWorkouts);
+                    }
+                }
+            ]
+        );
+    };
+
+    // Function to edit custom workout
+    const editCustomWorkout = (workout: any) => {
+        console.log('Setting editingWorkout to:', workout);
+        setEditingWorkout(workout);
+        handleCustomWorkoutSnapPress(0);
+    };
+
+    // Function to update edited workout
+    const updateCustomWorkout = (updatedWorkout: any) => {
+        // Update in workoutTypes state
+        setWorkoutTypes(prev => prev.map(w =>
+            w.id === updatedWorkout.id
+                ? {
+                    ...w,
+                    name: updatedWorkout.name,
+                    icon: updatedWorkout.icon,
+                    exercises: updatedWorkout.exercises.map((ex: any, exIdx: number) => ({
+                        id: ex.id || exIdx + 1000,
+                        name: ex.name,
+                        sets: ex.sets.map((set: any, setIdx: number) => ({
+                            id: setIdx + 1,
+                            reps: set.reps,
+                            weight: set.weight,
+                            completed: false,
+                            actualReps: set.actualReps,
+                            actualWeight: set.actualWeight
+                        }))
+                    }))
+                }
+                : w
+        ));
+
+        // Update in local storage
+        const customWorkouts = loadCustomWorkouts();
+        const updatedCustomWorkouts = customWorkouts.map((w: any) =>
+            w.id === updatedWorkout.id ? updatedWorkout : w
+        );
+        saveCustomWorkouts(updatedCustomWorkouts);
+
+        setEditingWorkout(null);
+        customSheetRef.current?.close();
+    };
+
+    // Function to check if a workout is complete
+    const isWorkoutComplete = (workout: any) => {
+        return workout.exercises.every((exercise: any) =>
+            exercise.sets.every((set: any) => set.completed)
+        );
+    };
 
     return (
-        <View style={styles.container}>
+        <SafeAreaView style={styles.container}>
+            {/* Beta Disclaimer */}
+            <View style={styles.betaDisclaimer}>
+                <Text style={styles.betaText}>🚧 Beta Build - Features in Development</Text>
+            </View>
+
             <View style={styles.headerRow}>
                 <TouchableOpacity style={styles.backButton} onPress={() => router.push('./profile')}>
                     <View style={styles.roundedBackButton}>
@@ -507,14 +651,21 @@ const WorkoutLog = () => {
                         </TouchableOpacity>
                     </View>
                     <ScrollView
+                        ref={calendarScrollRef}
                         horizontal
                         showsHorizontalScrollIndicator={false}
-                        contentContainerStyle={{ flexDirection: 'row', alignItems: 'flex-end', position: 'relative', marginBottom: 10 }}
+                        contentContainerStyle={{ flexDirection: 'row', alignItems: 'flex-end', position: 'relative', marginBottom: 10, paddingHorizontal: 24 }}
                         style={{ marginHorizontal: -24 }}
+                        onLayout={() => {
+                            // Scroll to center the current day (now at index 3)
+                            const scrollToX = 3 * 60; // 3rd position (current day) * 60px per day button
+                            calendarScrollRef.current?.scrollTo({ x: scrollToX - 120, animated: true }); // Center the current day
+                        }}
                     >
                         {calendarDays.map((item, idx) => {
                             const isEdge = idx === 0 || idx === calendarDays.length - 1;
                             const isSelected = selectedDate === item.day;
+                            const isToday = item.isToday;
                             return (
                                 <TouchableOpacity
                                     key={item.day}
@@ -523,22 +674,17 @@ const WorkoutLog = () => {
                                     style={[
                                         styles.dayButton,
                                         isSelected && styles.selectedDay,
+                                        isToday && !isSelected && styles.todayButton,
                                         isEdge && !isSelected && styles.edgeDayUnselected
                                     ]}
                                 >
-                                    <Text style={[styles.dayLabel, isSelected && styles.selectedDayLabel]}>{item.label}</Text>
-                                    <Text style={[styles.dayText, isSelected && styles.selectedDayText]}>{item.day}</Text>
+                                    <Text style={[styles.dayLabel, isSelected && styles.selectedDayLabel, isToday && !isSelected && styles.todayLabel]}>{item.label}</Text>
+                                    <Text style={[styles.dayText, isSelected && styles.selectedDayText, isToday && !isSelected && styles.todayText]}>{item.day}</Text>
                                 </TouchableOpacity>
                             );
                         })}
                     </ScrollView>
                 </View>
-
-                {/* <View className='px-[24px]'>
-                    <TouchableOpacity style={[styles.addPastWorkoutButton, { marginBottom: 16 }]}>
-                        <Text style={styles.addPastWorkoutText}>Add Past Workout</Text>
-                    </TouchableOpacity>
-                </View> */}
 
                 <Text style={styles.sectionTitle} className='px-[24px]'>Select workout Type</Text>
                 <Text style={styles.sectionSubtitle} className='px-[24px] '>Choose your workout, chase your goals.</Text>
@@ -546,26 +692,29 @@ const WorkoutLog = () => {
                 <View className='px-[24px]'>
                     {workoutTypes.map((workout) => {
                         const isSelected = selectedWorkoutId === workout.id;
+                        const isCustomWorkout = workout.id > 10; // Custom workouts have IDs > 10
                         return (
-                            <TouchableOpacity
-                                key={workout.id}
-                                style={[styles.workoutTypeCard, isSelected && styles.workoutTypeCardSelected]}
-                                activeOpacity={0.85}
-                                onPress={() => handleWorkoutSelect(workout.id)}
-                            >
-                                <View style={styles.workoutTypeLeft}>
-                                    <View style={[styles.workoutIcon, { backgroundColor: '#FFF0E5' }]}>
-                                        <Text style={styles.workoutIconText}>{workout.icon}</Text>
+                            <View key={workout.id} style={styles.workoutCardContainer}>
+                                <TouchableOpacity
+                                    style={[styles.workoutTypeCard, isSelected && styles.workoutTypeCardSelected]}
+                                    activeOpacity={0.85}
+                                    onPress={() => handleWorkoutSelect(workout.id)}
+                                >
+                                    <View style={styles.workoutTypeLeft}>
+                                        <View style={[styles.workoutIcon, { backgroundColor: '#FFF0E5' }]}>
+                                            <Text style={styles.workoutIconText}>{workout.icon}</Text>
+                                        </View>
+                                        <View style={styles.workoutInfo}>
+                                            <Text style={styles.workoutName}>{workout.name}</Text>
+                                            <Text style={styles.workoutDetails}>{workout.exercises.length} exercises</Text>
+                                        </View>
                                     </View>
-                                    <View style={styles.workoutInfo}>
-                                        <Text style={styles.workoutName}>{workout.name}</Text>
-                                        <Text style={styles.workoutDetails}>{workout.exercises.length} exercises</Text>
+                                    <View style={styles.workoutTypeRight}>
+                                        <Text style={styles.caloriesText}>{workout.exercises.reduce((sum, ex) => sum + ex.sets.length, 0)} sets</Text>
                                     </View>
-                                </View>
-                                <View style={styles.workoutTypeRight}>
-                                    <Text style={styles.caloriesText}>{workout.exercises.reduce((sum, ex) => sum + ex.sets.length, 0)} sets</Text>
-                                </View>
-                            </TouchableOpacity>
+                                </TouchableOpacity>
+
+                            </View>
                         );
                     })}
                 </View>
@@ -574,7 +723,8 @@ const WorkoutLog = () => {
                     <TouchableOpacity
                         style={styles.createCustomButton}
                         onPress={() => {
-                            handleCustomWorkoutSnapPress(1)
+                            setEditingWorkout(null); // Reset to null for new workout
+                            handleCustomWorkoutSnapPress(0)
                         }}
                     >
                         <Text style={styles.createCustomText}>Create Custom Workout</Text>
@@ -596,7 +746,6 @@ const WorkoutLog = () => {
                         </Text>
                     </TouchableOpacity>
                 </View>
-
 
                 <BottomSheet
                     ref={sheetRef}
@@ -672,6 +821,66 @@ const WorkoutLog = () => {
                                 </Animated.View>
                             )}
 
+                            {/* Incomplete Workout Popup */}
+                            {showIncompletePopup && (
+                                <Animated.View
+                                    style={{
+                                        position: 'absolute',
+                                        top: 0,
+                                        left: 0,
+                                        right: 0,
+                                        bottom: 0,
+                                        backgroundColor: 'rgba(0,0,0,0.5)',
+                                        justifyContent: 'center',
+                                        alignItems: 'center',
+                                        zIndex: 1000,
+                                        opacity: incompletePopupAnim,
+                                    }}
+                                >
+                                    <Animated.View
+                                        style={{
+                                            transform: [{ scale: incompletePopupScale }],
+                                            backgroundColor: '#fff',
+                                            borderRadius: 24,
+                                            padding: 32,
+                                            margin: 20,
+                                            alignItems: 'center',
+                                            shadowColor: '#000',
+                                            shadowOffset: { width: 0, height: 8 },
+                                            shadowOpacity: 0.25,
+                                            shadowRadius: 16,
+                                            elevation: 12,
+                                            maxWidth: 320,
+                                        }}
+                                    >
+                                        <Text style={{ fontSize: 48, marginBottom: 16 }}>🏋️‍♂️</Text>
+                                        <Text style={{ fontSize: 24, fontWeight: 'bold', color: '#222', textAlign: 'center', marginBottom: 8 }}>
+                                            Workout Not Complete
+                                        </Text>
+                                        <Text style={{ fontSize: 16, color: '#666', textAlign: 'center', marginBottom: 24, lineHeight: 22 }}>
+                                            To log a workout, please press an exercise and get started! Complete all sets to log your progress.
+                                        </Text>
+                                        <TouchableOpacity
+                                            onPress={hideIncompleteWorkoutPopup}
+                                            style={{
+                                                backgroundColor: '#FF6936',
+                                                paddingHorizontal: 32,
+                                                paddingVertical: 14,
+                                                borderRadius: 28,
+                                                shadowColor: '#FF6936',
+                                                shadowOpacity: 0.2,
+                                                shadowRadius: 8,
+                                                elevation: 4,
+                                            }}
+                                        >
+                                            <Text style={{ color: '#fff', fontSize: 16, fontWeight: '600' }}>
+                                                Got It!
+                                            </Text>
+                                        </TouchableOpacity>
+                                    </Animated.View>
+                                </Animated.View>
+                            )}
+
                             <Animated.View
                                 style={{
                                     opacity: fadeAnim,
@@ -683,30 +892,46 @@ const WorkoutLog = () => {
                             >
                                 {selectedWorkout && !selectedExerciseId && (
                                     <>
-                                        <TouchableOpacity
-                                            onPress={() => {
-                                                handleClosePress()
-                                                setSelectedWorkoutId(null)
-                                                setSelectedExerciseId(null)
-                                                setCurrentSetIdx(0)
-                                                setShowTimer(false)
-                                                setTimerSeconds(0)
-                                            }}
-                                            style={{
-                                                alignSelf: 'flex-start',
-                                                backgroundColor: '#FF6936',
-                                                paddingHorizontal: 18,
-                                                paddingVertical: 8,
-                                                borderRadius: 20,
-                                                marginBottom: 16,
-                                                marginLeft: 0,
-                                            }}
-                                            activeOpacity={0.85}
-                                        >
-                                            <Text style={{ color: '#fff', fontWeight: '600', fontSize: 16 }}>
-                                                ← Back
-                                            </Text>
-                                        </TouchableOpacity>
+                                        <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
+                                            <TouchableOpacity
+                                                onPress={() => {
+                                                    handleClosePress()
+                                                    setSelectedWorkoutId(null)
+                                                    setSelectedExerciseId(null)
+                                                    setCurrentSetIdx(0)
+                                                    setShowTimer(false)
+                                                    setTimerSeconds(0)
+                                                }}
+                                                style={{
+                                                    backgroundColor: '#FF6936',
+                                                    paddingHorizontal: 18,
+                                                    paddingVertical: 8,
+                                                    borderRadius: 20,
+                                                }}
+                                                activeOpacity={0.85}
+                                            >
+                                                <Text style={{ color: '#fff', fontWeight: '600', fontSize: 16 }}>
+                                                    ← Back
+                                                </Text>
+                                            </TouchableOpacity>
+
+                                            {selectedWorkout.id > 10 && (
+                                                <View style={{ flexDirection: 'row', gap: 8 }}>
+                                                    <TouchableOpacity
+                                                        style={[styles.deleteWorkoutButton, { backgroundColor: '#FF6936' }]}
+                                                        onPress={() => editCustomWorkout(selectedWorkout)}
+                                                    >
+                                                        <Text style={styles.deleteWorkoutText}>✏️</Text>
+                                                    </TouchableOpacity>
+                                                    <TouchableOpacity
+                                                        style={styles.deleteWorkoutButton}
+                                                        onPress={() => deleteCustomWorkout(selectedWorkout.id)}
+                                                    >
+                                                        <Text style={styles.deleteWorkoutText}>🗑️</Text>
+                                                    </TouchableOpacity>
+                                                </View>
+                                            )}
+                                        </View>
                                         <Text style={[styles.modalWorkoutName, { width: '100%', textAlign: 'center', alignSelf: 'center', fontWeight: '700' }]}>
                                             {selectedWorkout.name}
                                         </Text>
@@ -765,15 +990,31 @@ const WorkoutLog = () => {
                                                 <Text style={{ color: '#FF6936', fontWeight: '600', fontSize: 18 }}>Reset</Text>
                                             </TouchableOpacity>
                                             <TouchableOpacity
-                                                style={{ flex: 1, backgroundColor: '#FF6936', borderRadius: 32, paddingVertical: 16, alignItems: 'center' }}
+                                                style={[
+                                                    { flex: 1, borderRadius: 32, paddingVertical: 16, alignItems: 'center' },
+                                                    isWorkoutComplete(selectedWorkout)
+                                                        ? { backgroundColor: '#FF6936' }
+                                                        : { backgroundColor: '#E5E5E5' }
+                                                ]}
                                                 onPress={() => {
-                                                    // Placeholder: log workout (show a popup or toast)
-                                                    setMotivationMessage('Workout logged! 🎉');
-                                                    setNextExercise(null);
-                                                    showMotivationPopupAnimation();
+                                                    if (isWorkoutComplete(selectedWorkout)) {
+                                                        // Placeholder: log workout (show a popup or toast)
+                                                        setMotivationMessage('Workout logged! 🎉');
+                                                        setNextExercise(null);
+                                                        showMotivationPopupAnimation();
+                                                    } else {
+                                                        showIncompleteWorkoutPopup();
+                                                    }
                                                 }}
                                             >
-                                                <Text style={{ color: '#fff', fontWeight: '600', fontSize: 18 }}>Log Workout</Text>
+                                                <Text style={[
+                                                    { fontWeight: '600', fontSize: 18 },
+                                                    isWorkoutComplete(selectedWorkout)
+                                                        ? { color: '#fff' }
+                                                        : { color: '#A1A1AA' }
+                                                ]}>
+                                                    Log Workout
+                                                </Text>
                                             </TouchableOpacity>
                                         </View>
                                     </>
@@ -889,33 +1130,18 @@ const WorkoutLog = () => {
                     snapPoints={customSnapPoints}
                     enablePanDownToClose
                 >
-                    <BottomSheetScrollView contentContainerClassName={'pb-20'} className={''}>
+                    <BottomSheetScrollView
+                        contentContainerStyle={{ paddingBottom: 200, flexGrow: 1 }}
+                        showsVerticalScrollIndicator={false}
+                    >
                         <CustomWorkoutSheet
-                            onClose={() => { }}
-                            onSave={(workout: CustomWorkout) => {
-                                // Convert all exercise and set IDs to numbers and add completed: false to each set
-                                setWorkoutTypes(prev => [
-                                    ...prev,
-                                    {
-                                        id: Date.now(),
-                                        name: workout.name,
-                                        icon: '✨',
-                                        exercises: workout.exercises.map((ex, exIdx) => ({
-                                            id: exIdx + 1000 + prev.length * 100, // unique numeric id
-                                            name: ex.name,
-                                            sets: ex.sets.map((set, setIdx) => ({
-                                                id: setIdx + 1,
-                                                reps: set.reps,
-                                                weight: set.weight,
-                                                completed: false,
-                                                actualReps: set.actualReps,
-                                                actualWeight: set.actualWeight
-                                            }))
-                                        }))
-                                    }
-                                ]);
+                            onClose={() => {
+                                setEditingWorkout(null);
                                 customSheetRef.current?.close();
                             }}
+                            onSave={saveCustomWorkout}
+                            onEdit={updateCustomWorkout}
+                            editingWorkout={editingWorkout}
                         />
                     </BottomSheetScrollView>
                 </BottomSheet>
@@ -989,7 +1215,7 @@ const WorkoutLog = () => {
                     </View>
                 </Modal>
             </ScrollView>
-        </View>
+        </SafeAreaView>
     );
 };
 
@@ -1337,7 +1563,7 @@ const styles = StyleSheet.create({
         flexDirection: 'row',
         alignItems: 'center',
         justifyContent: 'space-between',
-        paddingTop: 60,
+        paddingTop: 10,
         paddingHorizontal: 24,
         marginBottom: 20,
     },
@@ -1440,6 +1666,18 @@ const styles = StyleSheet.create({
     },
     selectedDayText: {
         color: '#fff',
+        fontWeight: 'bold',
+    },
+    todayButton: {
+        backgroundColor: '#FFE5D9',
+        borderColor: '#FF6936',
+        borderWidth: 1,
+    },
+    todayLabel: {
+        color: '#FF6936',
+    },
+    todayText: {
+        color: '#FF6936',
         fontWeight: 'bold',
     },
     addPastWorkoutButton: {
@@ -1570,184 +1808,38 @@ const styles = StyleSheet.create({
         fontWeight: 'bold',
         fontSize: 16,
     },
+    workoutCardContainer: {
+        position: 'relative',
+        marginBottom: 12,
+    },
+    deleteWorkoutButton: {
+
+        width: 24,
+        height: 24,
+        borderRadius: 12,
+        backgroundColor: '#FF4444',
+        justifyContent: 'center',
+        alignItems: 'center',
+        zIndex: 1,
+    },
+    deleteWorkoutText: {
+        fontSize: 12,
+        color: '#fff',
+    },
+    betaDisclaimer: {
+        backgroundColor: '#FFF0E5',
+        paddingVertical: 8,
+        paddingHorizontal: 16,
+        borderBottomWidth: 1,
+        borderBottomColor: '#FF6936',
+        alignItems: 'center',
+    },
+    betaText: {
+        fontSize: 12,
+        color: '#FF6936',
+        fontWeight: '600',
+    },
 });
 
-type CustomWorkoutSheetProps = {
-    onClose: () => void;
-    onSave: (workout: CustomWorkout) => void;
-};
-function CustomWorkoutSheet({ onSave }: CustomWorkoutSheetProps) {
-    const [step, setStep] = useState(1);
-    const [workoutName, setWorkoutName] = useState('');
-    const [exercises, setExercises] = useState<any[]>([]);
-    const [exerciseSearch, setExerciseSearch] = useState('');
-    const [selectedExercise, setSelectedExercise] = useState('');
-    const [setsForExercise, setSetsForExercise] = useState(3);
-    const [repsForSet, setRepsForSet] = useState(10);
-    const [weightForSet, setWeightForSet] = useState(0);
-    if (step === 1) {
-        return (
-            <View style={{ flex: 1, padding: 24, backgroundColor: '#fff', justifyContent: 'center' }}>
-                <Text style={{ fontSize: 28, fontWeight: '700', marginBottom: 24 }}>Name your workout</Text>
-                <TextInput
-                    value={workoutName}
-                    onChangeText={setWorkoutName}
-                    placeholder="e.g. Push Day, Full Body, Custom..."
-                    style={{ borderWidth: 1, borderColor: '#E5E7EB', borderRadius: 12, padding: 16, fontSize: 18, marginBottom: 32 }}
-                />
-                <TouchableOpacity
-                    style={{ backgroundColor: '#FF6936', borderRadius: 32, paddingVertical: 18, alignItems: 'center' }}
-                    onPress={() => setStep(2)}
-                    disabled={!workoutName.trim()}
-                >
-                    <Text style={{ color: '#fff', fontWeight: '600', fontSize: 18 }}>Next</Text>
-                </TouchableOpacity>
-            </View>
-        );
-    }
-    if (step === 2) {
-        const filteredExercises = EXERCISE_LIBRARY.filter((e: string) => e.toLowerCase().includes(exerciseSearch.toLowerCase()));
-        return (
-            <View style={{ flex: 1, padding: 24, backgroundColor: '#fff' }}>
-                <Text style={{ fontSize: 24, fontWeight: '700', marginBottom: 12 }}>Add exercises</Text>
-                <TextInput
-                    value={exerciseSearch}
-                    onChangeText={setExerciseSearch}
-                    placeholder="Search or create exercise"
-                    style={{ borderWidth: 1, borderColor: '#E5E7EB', borderRadius: 12, padding: 14, fontSize: 16, marginBottom: 12 }}
-                />
-                <ScrollView style={{ maxHeight: 180, marginBottom: 12 }}>
-                    {filteredExercises.map((ex: string, idx: number) => (
-                        <TouchableOpacity
-                            key={ex + idx}
-                            style={{ padding: 12, borderBottomWidth: 1, borderColor: '#F3F4F6' }}
-                            onPress={() => setSelectedExercise(ex)}
-                        >
-                            <Text style={{ fontSize: 16 }}>{ex}</Text>
-                        </TouchableOpacity>
-                    ))}
-                    {exerciseSearch.length > 0 && !EXERCISE_LIBRARY.includes(exerciseSearch) && (
-                        <TouchableOpacity
-                            style={{ padding: 12, backgroundColor: '#FFF0E5', borderRadius: 8, marginTop: 8 }}
-                            onPress={() => setSelectedExercise(exerciseSearch)}
-                        >
-                            <Text style={{ fontSize: 16, color: '#FF6936' }}>+ Create "{exerciseSearch}"</Text>
-                        </TouchableOpacity>
-                    )}
-                </ScrollView>
-                {selectedExercise ? (
-                    <View style={{ marginTop: 12, marginBottom: 24 }}>
-                        <Text style={{ fontSize: 18, fontWeight: '600', marginBottom: 8 }}>{selectedExercise}</Text>
-                        <Text>Sets:</Text>
-                        <TextInput
-                            value={String(setsForExercise)}
-                            onChangeText={v => setSetsForExercise(Number(v))}
-                            keyboardType="numeric"
-                            style={{ borderWidth: 1, borderColor: '#E5E7EB', borderRadius: 8, padding: 8, marginBottom: 8 }}
-                        />
-                        <Text>Reps per set:</Text>
-                        <TextInput
-                            value={String(repsForSet)}
-                            onChangeText={v => setRepsForSet(Number(v))}
-                            keyboardType="numeric"
-                            style={{ borderWidth: 1, borderColor: '#E5E7EB', borderRadius: 8, padding: 8, marginBottom: 8 }}
-                        />
-                        <Text>Weight per set (lbs):</Text>
-                        <TextInput
-                            value={String(weightForSet)}
-                            onChangeText={v => setWeightForSet(Number(v))}
-                            keyboardType="numeric"
-                            style={{ borderWidth: 1, borderColor: '#E5E7EB', borderRadius: 8, padding: 8, marginBottom: 8 }}
-                        />
-                        <TouchableOpacity
-                            style={{ backgroundColor: '#FF6936', borderRadius: 24, paddingVertical: 12, alignItems: 'center', marginTop: 8 }}
-                            onPress={() => {
-                                setExercises(prev => [
-                                    ...prev,
-                                    {
-                                        id: Date.now().toString(),
-                                        name: selectedExercise,
-                                        sets: Array.from({ length: setsForExercise }, () => ({ reps: repsForSet, weight: weightForSet, actualReps: undefined, actualWeight: undefined }))
-                                    }
-                                ]);
-                                setSelectedExercise('');
-                                setSetsForExercise(3);
-                                setRepsForSet(10);
-                                setWeightForSet(0);
-                            }}
-                        >
-                            <Text style={{ color: '#fff', fontWeight: '600', fontSize: 16 }}>Add Exercise</Text>
-                        </TouchableOpacity>
-                    </View>
-                ) : null}
-                <Text style={{ fontWeight: '700', fontSize: 16, marginTop: 12 }}>Exercises in this workout:</Text>
-                <FlatList
-                    data={exercises}
-                    keyExtractor={item => item.id}
-                    renderItem={({ item, index }: { item: any; index: number }) => (
-                        <View style={{ flexDirection: 'row', alignItems: 'center', marginVertical: 6, backgroundColor: '#F3F4F6', borderRadius: 8, padding: 8 }}>
-                            <Text style={{ flex: 1, fontSize: 16 }}>{item.name} ({item.sets.length} sets)</Text>
-                            <TouchableOpacity onPress={() => setExercises(prev => prev.filter((_, i) => i !== index))}>
-                                <Text style={{ color: '#FF6936', fontWeight: '700', fontSize: 16 }}>Remove</Text>
-                            </TouchableOpacity>
-                        </View>
-                    )}
-                />
-                <View style={{ flexDirection: 'row', marginTop: 24, gap: 12 }}>
-                    <TouchableOpacity
-                        style={{ flex: 1, borderWidth: 2, borderColor: '#FF6936', borderRadius: 32, paddingVertical: 16, alignItems: 'center', backgroundColor: '#fff' }}
-                        onPress={() => setStep(1)}
-                    >
-                        <Text style={{ color: '#FF6936', fontWeight: '600', fontSize: 18 }}>Back</Text>
-                    </TouchableOpacity>
-                    <TouchableOpacity
-                        style={{ flex: 1, backgroundColor: '#FF6936', borderRadius: 32, paddingVertical: 16, alignItems: 'center' }}
-                        onPress={() => setStep(3)}
-                        disabled={exercises.length === 0}
-                    >
-                        <Text style={{ color: '#fff', fontWeight: '600', fontSize: 18 }}>Next</Text>
-                    </TouchableOpacity>
-                </View>
-            </View>
-        );
-    }
-    if (step === 3) {
-        return (
-            <View style={{ flex: 1, padding: 24, backgroundColor: '#fff' }}>
-                <Text style={{ fontSize: 24, fontWeight: '700', marginBottom: 12 }}>Review your workout</Text>
-                <Text style={{ fontSize: 18, fontWeight: '600', marginBottom: 8 }}>{workoutName}</Text>
-                <FlatList
-                    data={exercises}
-                    keyExtractor={item => item.id}
-                    renderItem={({ item }: { item: any }) => (
-                        <View style={{ marginBottom: 12, backgroundColor: '#F3F4F6', borderRadius: 8, padding: 10 }}>
-                            <Text style={{ fontWeight: '700', fontSize: 16 }}>{item.name}</Text>
-                            {item.sets.map((set: any, idx: number) => (
-                                <Text key={idx} style={{ marginLeft: 8, color: '#6B7280' }}>Set {idx + 1}: {set.reps} reps @ {set.weight} lbs</Text>
-                            ))}
-                        </View>
-                    )}
-                />
-                <View style={{ flexDirection: 'row', marginTop: 24, gap: 12 }}>
-                    <TouchableOpacity
-                        style={{ flex: 1, borderWidth: 2, borderColor: '#FF6936', borderRadius: 32, paddingVertical: 16, alignItems: 'center', backgroundColor: '#fff' }}
-                        onPress={() => setStep(2)}
-                    >
-                        <Text style={{ color: '#FF6936', fontWeight: '600', fontSize: 18 }}>Back</Text>
-                    </TouchableOpacity>
-                    <TouchableOpacity
-                        style={{ flex: 1, backgroundColor: '#FF6936', borderRadius: 32, paddingVertical: 16, alignItems: 'center' }}
-                        onPress={() => {
-                            onSave({ name: workoutName, exercises });
-                        }}
-                    >
-                        <Text style={{ color: '#fff', fontWeight: '600', fontSize: 18 }}>Save Workout</Text>
-                    </TouchableOpacity>
-                </View>
-            </View>
-        );
-    }
-    return null;
-}
 
 export default WorkoutLog;

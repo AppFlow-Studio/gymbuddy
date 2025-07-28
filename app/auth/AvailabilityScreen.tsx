@@ -1,7 +1,8 @@
-import { useRouter } from 'expo-router';
-import React, { useState } from 'react';
-import { StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import { storage } from '@/utils/local-storage';
 import { useProfileStore } from '@/utils/profile-store';
+import { useRouter } from 'expo-router';
+import React from 'react';
+import { StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 const options = [
     { label: 'Morning', value: 'morning' },
     { label: 'Afternoon', value: 'afternoon' },
@@ -17,6 +18,15 @@ export default function AvailabilityScreen() {
     const toggleOption = (value: string) => {
         setAvailability(profile.availability.includes(value) ? profile.availability.filter((v) => v !== value) : [...profile.availability, value]);
     };
+
+    const onNext = () => {
+        storage.set('profile', JSON.stringify(profile));
+        router.replace('/(tabs)');
+        const jsonUser = storage.getString('profile') // { 'username': 'Marc', 'age': 21 }
+        const userObject = JSON.parse(jsonUser || '{}')
+        console.log(userObject)
+    }
+
 
     return (
         <View style={styles.container}>
@@ -43,7 +53,7 @@ export default function AvailabilityScreen() {
             <TouchableOpacity
                 style={[styles.nextButton, { opacity: profile.availability.length > 0 ? 1 : 0.5 }]}
                 disabled={profile.availability.length === 0}
-                onPress={() => router.replace('/(tabs)')}
+                onPress={onNext}
             >
                 <Text style={styles.nextButtonText}>Next</Text>
             </TouchableOpacity>

@@ -79,7 +79,10 @@ export default function GymScreen() {
             <TouchableOpacity className=' bg-[#FF6936] text-white rounded-full p-4 w-full'>
                 <Text style={styles.homeButtonText} className='text-center text-white'>Find On Map</Text>
             </TouchableOpacity>
-            <TouchableOpacity style={styles.homeButton} className='w-full flex items-center justify-center mt-4'>
+            <TouchableOpacity style={styles.homeButton} onPress={() => {
+                router.push('/auth/ExperienceScreen');
+                setGym('Home/Private Gym');
+            }} className='w-full flex items-center justify-center mt-4'>
                 <Text style={styles.homeButtonText} className='text-[#FF6936]'>I work out at a home/private gym</Text>
             </TouchableOpacity>
             <TouchableOpacity

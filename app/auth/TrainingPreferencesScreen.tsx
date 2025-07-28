@@ -3,16 +3,8 @@ import { useRouter } from 'expo-router';
 import React from 'react';
 import { StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 
-const trainingOptions = [
-    'Chip',
-    'Powerlifting',
-    'Bodybuilding',
-    'CrossFit',
-    'Cardio',
-    'HIIT',
-    'Calisthenics',
-    'Functional Training',
-];
+const trainingOptions = ['Strength Training', 'Cardio', 'Yoga', 'CrossFit', 'Bodybuilding', 'Powerlifting', 'Functional Training', 'Sports', 'HIIT'];
+
 
 export default function TrainingPreferencesScreen() {
     const router = useRouter();

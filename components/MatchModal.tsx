@@ -1,7 +1,7 @@
+import { useProfileStore } from '@/utils/profile-store';
 import React from 'react';
 import { Image, Modal, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import TiltedDumbell from './icons/TiltedDumbell';
-import { useProfileStore } from '@/utils/profile-store';
 export default function MatchModal({ visible, onClose, userProfile, matchedProfile }: {
   visible: boolean;
   onClose: () => void;
@@ -9,12 +9,30 @@ export default function MatchModal({ visible, onClose, userProfile, matchedProfi
   matchedProfile: any;
 }) {
   const { profile } = useProfileStore();
-  if (!matchedProfile) return null;
-  console.log(matchedProfile);
+
+  console.log('MatchModal - visible:', visible);
+  console.log('MatchModal - userProfile:', userProfile);
+  console.log('MatchModal - matchedProfile:', matchedProfile);
+  console.log('MatchModal - store profile:', profile);
+
+  if (!matchedProfile) {
+    console.log('MatchModal - no matchedProfile, returning null');
+    return null;
+  }
   return (
-    <Modal visible={visible} transparent animationType="fade">
+    <Modal
+      visible={visible}
+      transparent
+      animationType="fade"
+      key={`match-${matchedProfile?.name || 'unknown'}`}
+    >
       <View style={styles.overlay}>
         <View style={styles.container} className='w-[95%] h-[70%]'>
+          {/* Debug info */}
+          <Text style={{ color: 'red', fontSize: 12, marginBottom: 10 }}>
+            Debug: {matchedProfile?.name || 'No name'} - {matchedProfile?.gym || 'No gym'}
+          </Text>
+
           {/* Overlapping Cards Row */}
           <View style={styles.cardsRow}>
             <View style={[styles.cardWrapper, { left: 0, zIndex: 2 }]}>
@@ -29,16 +47,16 @@ export default function MatchModal({ visible, onClose, userProfile, matchedProfi
             </View>
           </View>
 
-         <View className='flex-1 justify-end items-center'>
+          <View className='flex-1 justify-end items-center'>
             <Text style={styles.matchTitle}>It's a match</Text>
-            <Text style={styles.matchSubtitle}>You and {matchedProfile.name} are now connected</Text>
+            <Text style={styles.matchSubtitle}>You and {matchedProfile?.name || 'Someone'} are now connected</Text>
             <TouchableOpacity style={styles.primaryButton} onPress={onClose}>
               <Text style={styles.primaryButtonText}>Send a Message</Text>
             </TouchableOpacity>
             <TouchableOpacity style={styles.secondaryButton} onPress={onClose}>
               <Text style={styles.secondaryButtonText}>Keep Swiping</Text>
             </TouchableOpacity>
-         </View>
+          </View>
         </View>
       </View>
     </Modal>

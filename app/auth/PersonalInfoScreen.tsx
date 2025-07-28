@@ -3,11 +3,10 @@ import { useRouter } from 'expo-router';
 import React, { useState } from 'react';
 import { Image, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
 import { useProfileStore } from '@/utils/profile-store';
-
+import { storage } from '@/utils/local-storage';
 export default function PersonalInfoScreen() {
     const { setFirstName, setLastName, setImage, setVideo, profile } = useProfileStore();
     const router = useRouter();
-
     const pickImage = async () => {
         const result = await ImagePicker.launchImageLibraryAsync({
             mediaTypes: ImagePicker.MediaTypeOptions.Images,
@@ -31,6 +30,10 @@ export default function PersonalInfoScreen() {
         }
     };
 
+    const onNext = () => {
+        router.push('/auth/GymScreen');
+    }
+    
     const canContinue = !!profile.firstName && !!profile.lastName && !!profile.image;
 
     return (
@@ -66,7 +69,7 @@ export default function PersonalInfoScreen() {
             <TouchableOpacity
                 style={[styles.nextButton, { opacity: canContinue ? 1 : 0.5 }]}
                 disabled={!canContinue}
-                onPress={() => router.push('/auth/GymScreen')}
+                onPress={onNext}
             >
                 <Text style={styles.nextButtonText}>Next</Text>
             </TouchableOpacity>

@@ -1,8 +1,7 @@
-import { View, Text, ScrollView, TouchableOpacity, Image, StyleSheet } from 'react-native'
-import React, { useState } from 'react'
-import Svg, { Path, Rect } from 'react-native-svg';
-import { SafeAreaView } from 'react-native-safe-area-context'
-import { useRouter } from 'expo-router'
+import { useRouter } from 'expo-router';
+import React, { useState } from 'react';
+import { Image, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 
 const Chat = () => {
   const router = useRouter()
@@ -81,31 +80,28 @@ const Chat = () => {
 
   return (
     <SafeAreaView style={styles.container}>
-      <View style={styles.header}>
-        <TouchableOpacity style={styles.backButton} onPress={() => router.back()}>
-            <View style={styles.roundedBackButton}>
-              <Svg width={8} height={14} viewBox="0 0 8 14" fill="none">
-                <Path d="M6.46964 0.469655C6.76253 0.176788 7.2373 0.176775 7.53019 0.469655C7.82305 0.762541 7.82305 1.23731 7.53019 1.5302L2.06046 6.99993L7.53019 12.4697C7.82308 12.7625 7.82308 13.2373 7.53019 13.5302C7.2373 13.8231 6.76253 13.8231 6.46964 13.5302L0.46964 7.5302C0.176803 7.23731 0.176771 6.76253 0.46964 6.46966L6.46964 0.469655Z" fill="#49494B" />
-              </Svg>
-            </View>
-        </TouchableOpacity>
-        <Text style={styles.headerTitle}>Chat</Text>
-        <View style={styles.headerSpacer} />
+      {/* Beta Disclaimer */}
+      <View style={styles.betaDisclaimer}>
+        <Text style={styles.betaText}>🚧 Beta Build - Features in Development</Text>
       </View>
-      
+
+      <View style={styles.header}>
+        <Text style={styles.headerTitle}>Chat</Text>
+      </View>
+
       <ScrollView style={styles.chatList}>
         {chatData.map((chat) => (
-          <TouchableOpacity 
-            key={chat.id} 
+          <TouchableOpacity
+            key={chat.id}
             style={styles.chatItem}
-            onPress={() => router.push({
-              pathname: '/ChatScreen',
-              params: { 
-                userId: chat.id,
-                userName: chat.name,
-                userAvatar: chat.avatar
-              }
-            })}
+          // onPress={() => router.push({
+          //   pathname: '/ChatScreen',
+          //   params: { 
+          //     userId: chat.id,
+          //     userName: chat.name,
+          //     userAvatar: chat.avatar
+          //   }
+          // })}
           >
             <Image source={{ uri: chat.avatar }} style={styles.avatar} />
             <View style={styles.chatContent}>
@@ -130,6 +126,19 @@ const styles = StyleSheet.create({
     backgroundColor: '#ffffff',
     paddingBottom: 50,
   },
+  betaDisclaimer: {
+    backgroundColor: '#FFF0E5',
+    paddingVertical: 8,
+    paddingHorizontal: 16,
+    borderBottomWidth: 1,
+    borderBottomColor: '#FF6936',
+    alignItems: 'center',
+  },
+  betaText: {
+    fontSize: 12,
+    color: '#FF6936',
+    fontWeight: '600',
+  },
   roundedBackButton: {
     width: 48,
     height: 48,
@@ -142,7 +151,7 @@ const styles = StyleSheet.create({
   header: {
     flexDirection: 'row',
     alignItems: 'center',
-    justifyContent: 'space-between',
+    justifyContent: 'center',
     paddingHorizontal: 20,
     paddingVertical: 15,
     backgroundColor: '#ffffff',

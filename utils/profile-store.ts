@@ -1,4 +1,5 @@
 import { create } from 'zustand';
+import { storage } from './local-storage';
 
 export type UserProfile = {
     firstName: string;
@@ -26,26 +27,91 @@ type ProfileStore = {
 };
 
 const initialProfile: UserProfile = {
-    firstName: 'Temur',
-    lastName: 'Sayfutdinov',
+    firstName: '',
+    lastName: '',
     image: null,
     video: null,
-    gym: 'LA Fitness',
-    experience: 'intermediate',
-    availability: ['morning', 'afternoon', 'evening'],
-    trainingPreferences: ['strength', 'hypertrophy', 'endurance'], // NEW FIELD
+    gym: '',
+    experience: null,
+    availability: [],
+    trainingPreferences: [], // NEW FIELD
 };
 
-export const useProfileStore = create<ProfileStore>((set) => ({
-    profile: { ...initialProfile },
-    setFirstName: (firstName) => set((state) => ({ profile: { ...state.profile, firstName } })),
-    setLastName: (lastName) => set((state) => ({ profile: { ...state.profile, lastName } })),
-    setImage: (image) => set((state) => ({ profile: { ...state.profile, image } })),
-    setVideo: (video) => set((state) => ({ profile: { ...state.profile, video } })),
-    setGym: (gym) => set((state) => ({ profile: { ...state.profile, gym } })),
-    setExperience: (experience) => set((state) => ({ profile: { ...state.profile, experience } })),
-    setAvailability: (availability) => set((state) => ({ profile: { ...state.profile, availability } })),
-    setTrainingPreferences: (trainingPreferences) => set((state) => ({ profile: { ...state.profile, trainingPreferences } })), // NEW SETTER
-    setProfile: (profile) => set((state) => ({ profile: { ...state.profile, ...profile } })),
-    resetProfile: () => set({ profile: { ...initialProfile } }),
+// Helper function to save profile to storage
+const saveProfileToStorage = (profile: UserProfile) => {
+    storage.set('profile', JSON.stringify(profile));
+};
+
+// Helper function to load profile from storage
+const loadProfileFromStorage = (): UserProfile => {
+    try {
+        const stored = storage.getString('profile');
+        if (stored) {
+            const parsed = JSON.parse(stored);
+            // Ensure all required fields exist
+            return {
+                ...initialProfile,
+                ...parsed,
+                // Ensure arrays are properly initialized
+                availability: parsed.availability || [],
+                trainingPreferences: parsed.trainingPreferences || [],
+            };
+        }
+    } catch (error) {
+        console.error('Error loading profile from storage:', error);
+    }
+    return { ...initialProfile };
+};
+
+export const useProfileStore = create<ProfileStore>((set, get) => ({
+    profile: loadProfileFromStorage(),
+    setFirstName: (firstName) => {
+        const newProfile = { ...get().profile, firstName };
+        set({ profile: newProfile });
+        saveProfileToStorage(newProfile);
+    },
+    setLastName: (lastName) => {
+        const newProfile = { ...get().profile, lastName };
+        set({ profile: newProfile });
+        saveProfileToStorage(newProfile);
+    },
+    setImage: (image) => {
+        const newProfile = { ...get().profile, image };
+        set({ profile: newProfile });
+        saveProfileToStorage(newProfile);
+    },
+    setVideo: (video) => {
+        const newProfile = { ...get().profile, video };
+        set({ profile: newProfile });
+        saveProfileToStorage(newProfile);
+    },
+    setGym: (gym) => {
+        const newProfile = { ...get().profile, gym };
+        set({ profile: newProfile });
+        saveProfileToStorage(newProfile);
+    },
+    setExperience: (experience) => {
+        const newProfile = { ...get().profile, experience };
+        set({ profile: newProfile });
+        saveProfileToStorage(newProfile);
+    },
+    setAvailability: (availability) => {
+        const newProfile = { ...get().profile, availability };
+        set({ profile: newProfile });
+        saveProfileToStorage(newProfile);
+    },
+    setTrainingPreferences: (trainingPreferences) => {
+        const newProfile = { ...get().profile, trainingPreferences };
+        set({ profile: newProfile });
+        saveProfileToStorage(newProfile);
+    },
+    setProfile: (profile) => {
+        const newProfile = { ...get().profile, ...profile };
+        set({ profile: newProfile });
+        saveProfileToStorage(newProfile);
+    },
+    resetProfile: () => {
+        set({ profile: { ...initialProfile } });
+        saveProfileToStorage({ ...initialProfile });
+    },
 })); 
