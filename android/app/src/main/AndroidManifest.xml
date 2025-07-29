@@ -26,6 +26,7 @@
         <category android:name="android.intent.category.DEFAULT"/>
         <category android:name="android.intent.category.BROWSABLE"/>
         <data android:scheme="gymbuddy"/>
+        <data android:scheme="exp+gymbuddy"/>
       </intent-filter>
     </activity>
   </application>
