@@ -1,7 +1,6 @@
 import { useEffect, useState } from "react";
 import { FlatList, ScrollView, Text, TextInput, TouchableOpacity, View } from "react-native";
 
-
 export type CustomWorkoutSheetProps = {
     onClose: () => void;
     onSave: (workout: CustomWorkout) => void;
@@ -23,7 +22,6 @@ export interface CustomWorkout {
 const EXERCISE_LIBRARY: string[] = [
     'Bench Press', 'Squat', 'Deadlift', 'Pull-up', 'Push-up', 'Chest Fly', 'Barbell Row', 'Overhead Press', 'Lateral Raise', 'Bicep Curl', 'Tricep Extension', 'Leg Press', 'Calf Raise', 'Crunch', 'Plank', 'Russian Twist', 'Burpee', 'Mountain Climber', 'Jump Rope', 'Dumbbell Lunge'
 ];
-
 
 export default function CustomWorkoutSheet({ onClose, onSave, onEdit, editingWorkout }: CustomWorkoutSheetProps) {
     const [step, setStep] = useState(1); // Start at step 1, useEffect will handle editing
@@ -60,6 +58,7 @@ export default function CustomWorkoutSheet({ onClose, onSave, onEdit, editingWor
 
     console.log('editingWorkout prop:', editingWorkout);
     console.log('Current state - workoutName:', workoutName, 'exercises:', exercises.length);
+
     // Popular workout emojis
     const workoutEmojis = [
         '💪', '🏋️', '🔥', '⚡', '💯', '🎯', '🚀', '💎', '⭐', '🌟',
@@ -80,10 +79,10 @@ export default function CustomWorkoutSheet({ onClose, onSave, onEdit, editingWor
         ));
     };
 
-    // Check if we're in edit mode based on step and if we have exercises
-    const isEditMode = step === 3 && exercises.length > 0;
+    // Check if we're in edit mode - more accurate detection
+    const isEditMode = editingWorkout && editingWorkout.id;
 
-    if (isEditMode) {
+    if (isEditMode && step === 3) {
         return (
             <View style={{ padding: 24, backgroundColor: '#fff' }}>
                 {/* Edit Mode Header */}
@@ -279,7 +278,7 @@ export default function CustomWorkoutSheet({ onClose, onSave, onEdit, editingWor
                             borderStyle: 'dashed'
                         }}
                         onPress={() => {
-                            // Reset exercise form state for adding new exercise
+                            // Always go to step 2 to add exercise
                             setSelectedExercise('');
                             setSetsForExercise(3);
                             setRepsForSet(10);
@@ -291,7 +290,7 @@ export default function CustomWorkoutSheet({ onClose, onSave, onEdit, editingWor
                         <Text style={{ color: '#FF6936', fontWeight: '600', fontSize: 14 }}>+ Add New Exercise</Text>
                     </TouchableOpacity>
                     <Text style={{ fontSize: 11, color: '#6B7280', textAlign: 'center', marginTop: 4 }}>
-                        {isEditMode ? 'Add new exercises to this workout' : 'Secondary: Add new exercises if needed'}
+                        Add new exercises to this workout
                     </Text>
                 </View>
 
@@ -325,7 +324,7 @@ export default function CustomWorkoutSheet({ onClose, onSave, onEdit, editingWor
                 <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 24 }}>
                     <View style={{ flex: 1 }} />
                     <Text style={{ fontSize: 28, fontWeight: '700', textAlign: 'center', flex: 2 }}>
-                        {editingWorkout ? 'Edit Workout' : 'Name your workout'}
+                        Name your workout
                     </Text>
                     <TouchableOpacity onPress={onClose} style={{ flex: 1, alignItems: 'flex-end' }}>
                         <Text style={{ fontSize: 18, color: '#666' }}>✕</Text>
@@ -405,7 +404,7 @@ export default function CustomWorkoutSheet({ onClose, onSave, onEdit, editingWor
     }
     else if (step === 2) {
         const filteredExercises = EXERCISE_LIBRARY.filter((e: string) => e.toLowerCase().includes(exerciseSearch.toLowerCase()));
-        const isEditMode = editingWorkout && exercises.length > 0;
+        const isEditMode = editingWorkout && editingWorkout.id;
 
         return (
             <View style={{ padding: 24, backgroundColor: '#fff' }}>
@@ -529,10 +528,7 @@ export default function CustomWorkoutSheet({ onClose, onSave, onEdit, editingWor
                                 setRepsForSet(10);
                                 setWeightForSet(0);
                                 setShowCustomSets(false);
-
-                                // If in edit mode, go back to edit view, otherwise stay on step 2
                                 if (isEditMode) {
-                                    // Show a brief success feedback before returning to edit view
                                     setTimeout(() => {
                                         setStep(3);
                                     }, 100);
@@ -624,7 +620,14 @@ export default function CustomWorkoutSheet({ onClose, onSave, onEdit, editingWor
                     <TouchableOpacity
                         style={{ flex: 1, backgroundColor: '#FF6936', borderRadius: 32, paddingVertical: 16, alignItems: 'center' }}
                         onPress={() => {
-                            onSave({ name: workoutName, icon: selectedEmoji, exercises });
+                            // Generate a unique ID for new workouts
+                            const workoutToSave = {
+                                id: Date.now().toString(),
+                                name: workoutName,
+                                icon: selectedEmoji,
+                                exercises: exercises
+                            };
+                            onSave(workoutToSave);
                         }}
                     >
                         <Text style={{ color: '#fff', fontWeight: '600', fontSize: 18 }}>

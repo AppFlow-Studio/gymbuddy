@@ -1,5 +1,5 @@
 import CustomWorkoutSheet, { CustomWorkout } from '@/components/CreateCustomWorkout';
-import { loadCustomWorkouts, saveCustomWorkouts } from '@/utils/local-storage';
+import { deleteCustomWorkout, loadCustomWorkouts, saveCustomWorkouts } from '@/utils/local-storage';
 import BottomSheet, { BottomSheetScrollView } from '@gorhom/bottom-sheet';
 import { useRouter } from 'expo-router';
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
@@ -504,18 +504,17 @@ const WorkoutLog = () => {
             }).start();
         }
     }, [showActualModal]);
-
     // Function to save custom workout
     const saveCustomWorkout = (workout: CustomWorkout) => {
         const newWorkout = {
-            ...workout,
-            id: Date.now(),
+            id: Number(workout.id) || Date.now(), // Convert to number for state compatibility
+            name: workout.name,
             icon: workout.icon || '✨',
             exercises: workout.exercises.map((ex, exIdx) => ({
-                id: exIdx + 1000,
+                id: Number(ex.id) || (exIdx + 1000), // Convert to number
                 name: ex.name,
                 sets: ex.sets.map((set, setIdx) => ({
-                    id: setIdx + 1,
+                    id: setIdx + 1, // Always generate new ID for sets
                     reps: set.reps,
                     weight: set.weight,
                     completed: false,
@@ -528,17 +527,16 @@ const WorkoutLog = () => {
         // Add to workoutTypes state
         setWorkoutTypes(prev => [...prev, newWorkout]);
 
-        // Save to local storage
-        const customWorkouts = loadCustomWorkouts();
-        customWorkouts.push(workout);
-        saveCustomWorkouts(customWorkouts);
+        // Save to local storage - append to existing workouts
+        const existingWorkouts = loadCustomWorkouts();
+        const updatedWorkouts = [...existingWorkouts, workout]; // Save original workout object
+        saveCustomWorkouts(updatedWorkouts);
 
         setEditingWorkout(null);
         customSheetRef.current?.close();
     };
-
     // Function to delete custom workout
-    const deleteCustomWorkout = (workoutId: number) => {
+    const deleteCustomWorkoutHandler = (workoutId: number) => {
         const workout = workoutTypes.find(w => w.id === workoutId);
         Alert.alert(
             'Delete Workout',
@@ -551,11 +549,9 @@ const WorkoutLog = () => {
                     onPress: () => {
                         // Remove from workoutTypes state
                         setWorkoutTypes(prev => prev.filter(w => w.id !== workoutId));
-
-                        // Remove from local storage
-                        const customWorkouts = loadCustomWorkouts();
-                        const updatedCustomWorkouts = customWorkouts.filter((w: any) => w.id !== workoutId);
-                        saveCustomWorkouts(updatedCustomWorkouts);
+                        sheetRef.current?.close();
+                        // Remove from local storage using helper function
+                        deleteCustomWorkout(workoutId);
                     }
                 }
             ]
@@ -579,7 +575,7 @@ const WorkoutLog = () => {
                     name: updatedWorkout.name,
                     icon: updatedWorkout.icon,
                     exercises: updatedWorkout.exercises.map((ex: any, exIdx: number) => ({
-                        id: ex.id || exIdx + 1000,
+                        id: Number(ex.id) || exIdx + 1000,
                         name: ex.name,
                         sets: ex.sets.map((set: any, setIdx: number) => ({
                             id: setIdx + 1,
@@ -925,7 +921,7 @@ const WorkoutLog = () => {
                                                     </TouchableOpacity>
                                                     <TouchableOpacity
                                                         style={styles.deleteWorkoutButton}
-                                                        onPress={() => deleteCustomWorkout(selectedWorkout.id)}
+                                                        onPress={() => deleteCustomWorkoutHandler(selectedWorkout.id)}
                                                     >
                                                         <Text style={styles.deleteWorkoutText}>🗑️</Text>
                                                     </TouchableOpacity>

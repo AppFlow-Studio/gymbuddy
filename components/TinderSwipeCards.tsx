@@ -1,7 +1,6 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { Animated, Dimensions, PanResponder, StyleSheet, Text, View } from 'react-native';
 import { useProfileStore } from '../utils/profile-store';
-import MatchModal from './MatchModal';
 
 const SCREEN_WIDTH = Dimensions.get('window').width;
 const SCREEN_HEIGHT = Dimensions.get('window').height;
@@ -87,6 +86,7 @@ export function TinderSwipeCards<T>({ data, renderCard, onSwipeLeft, onSwipeRigh
     }
 
     function onSwipeComplete(direction: 'left' | 'right', cardIndex: number) {
+        if (cardIndex >= data.length) return; // Prevent out-of-bounds access
         const currentItem = data[cardIndex]; // Get the current card that was swiped
         console.log('Swipe completed:', direction, 'Card index:', cardIndex, 'Current item:', currentItem);
         console.log('Current item details:', {
@@ -108,7 +108,7 @@ export function TinderSwipeCards<T>({ data, renderCard, onSwipeLeft, onSwipeRigh
         setTimeout(() => {
             setCardIndex(prev => {
                 console.log('Updating cardIndex from', prev, 'to', prev + 1);
-                return prev + 1;
+                return Math.min(prev + 1, data.length);
             });
         }, 50);
     }
@@ -149,6 +149,7 @@ export function TinderSwipeCards<T>({ data, renderCard, onSwipeLeft, onSwipeRigh
     console.log('Current cardIndex:', cardIndex, 'Data length:', data.length);
 
     for (let i = cardIndex; i < Math.min(cardIndex + STACK_SIZE, data.length); i++) {
+        if (!data[i]) continue; // Skip undefined cards
         console.log('Rendering card at index:', i, 'Profile:', data[i]);
 
         if (i === cardIndex) {
